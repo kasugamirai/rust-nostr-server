@@ -35,6 +35,12 @@ pub struct Msg {
     message: String,
 }
 
+impl Msg {
+    pub async fn new(msg: String) -> Self {
+        Msg { message: msg }
+    }
+}
+
 #[async_trait]
 pub trait Message {
     async fn decode(&self) -> Result<Event, Error>;
