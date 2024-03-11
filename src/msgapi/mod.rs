@@ -1,3 +1,4 @@
+mod event;
 mod incoming;
 pub use incoming::Msg;
 
