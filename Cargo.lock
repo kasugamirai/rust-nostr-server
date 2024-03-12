@@ -929,6 +929,30 @@ version = "0.28.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "62abb4201e9d6b8b25660bebcad7bc0eb0cf25ecf9fd139c8d8c36ac455d37da"
 dependencies = [
+ "base64",
+ "bip39",
+ "bitcoin",
+ "cbc",
+ "chacha20",
+ "chacha20poly1305",
+ "getrandom",
+ "instant",
+ "negentropy",
+ "once_cell",
+ "scrypt",
+ "serde",
+ "serde_json",
+ "tracing",
+ "unicode-normalization",
+ "url",
+ "wasm-bindgen",
+]
+
+[[package]]
+name = "nostr"
+version = "0.28.1"
+source = "git+https://github.com/rust-nostr/nostr.git?branch=master#89253a9c3845478cabd1bb69f6f9d2f26ec79876"
+dependencies = [
  "aes",
  "base64",
  "bip39",
@@ -962,7 +986,7 @@ dependencies = [
  "async-trait",
  "flatbuffers",
  "lru",
- "nostr",
+ "nostr 0.28.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "thiserror",
  "tokio",
  "tracing",
@@ -976,7 +1000,7 @@ checksum = "2e986b0a13f2d022190d1e643c469c60837e31016acd68cc3589a175a520ec8d"
 dependencies = [
  "async-trait",
  "jobserver",
- "nostr",
+ "nostr 0.28.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "nostr-database",
  "num_cpus",
  "rocksdb",
@@ -1277,7 +1301,7 @@ dependencies = [
  "env_logger",
  "futures-util",
  "log",
- "nostr",
+ "nostr 0.28.1 (git+https://github.com/rust-nostr/nostr.git?branch=master)",
  "nostr-database",
  "nostr-rocksdb",
  "tokio",
