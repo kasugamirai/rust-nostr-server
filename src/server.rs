@@ -1,12 +1,21 @@
-use crate::Message;
+use crate::{msgapi, Message};
+use nostr_database::{DatabaseError, NostrDatabase, Order};
+use nostr_rocksdb::RocksDatabase;
 use std::fmt;
+use tokio::sync::Mutex;
 
 use crate::Msg;
 use async_trait::async_trait;
-use nostr::{message::MessageHandleError, Event, RawRelayMessage, RelayMessage};
+use nostr::{
+    event,
+    message::{self, MessageHandleError},
+    Event, RawRelayMessage, RelayMessage,
+};
 pub enum Error {
     Event(nostr::event::Error),
     MessageHandleError(MessageHandleError),
+    MsgapiError(msgapi::Error),
+    DatabaseError(DatabaseError),
 }
 
 impl fmt::Display for Error {
@@ -14,7 +23,21 @@ impl fmt::Display for Error {
         match self {
             Error::Event(e) => write!(f, "event: {}", e),
             Error::MessageHandleError(e) => write!(f, "message handle error: {}", e),
+            Error::MsgapiError(e) => write!(f, "msgapi error: {}", e),
+            Error::DatabaseError(e) => write!(f, "database error: {}", e),
         }
+    }
+}
+
+impl From<DatabaseError> for Error {
+    fn from(e: DatabaseError) -> Self {
+        Self::DatabaseError(e)
+    }
+}
+
+impl From<msgapi::Error> for Error {
+    fn from(e: msgapi::Error) -> Self {
+        Self::MsgapiError(e)
     }
 }
 
@@ -31,23 +54,32 @@ impl From<MessageHandleError> for Error {
 }
 
 pub struct Server {
-    event: Event,
+    db: Mutex<RocksDatabase>,
 }
-
 impl Server {
-    pub async fn new(msg: String) -> Result<Self, Error> {
-        let m = Msg::new(msg).await;
-        let event = m.decode().await?;
-        // TODO: Use the event for something
-        Ok(Self { msg })
+    pub async fn new() -> Result<Self, Error> {
+        let db = RocksDatabase::open("./db/rocksdb").await?;
+        Ok(Server { db: Mutex::new(db) })
     }
 }
 #[async_trait]
 pub trait Handlers {
-    async fn req(&self) -> Result<RelayMessage, Error>;
+    async fn from_json(&self, message: String) -> Result<Event, Error>;
+    async fn req(&self, message: String) -> Result<(), Error>;
 }
 
 #[async_trait]
 impl Handlers for Server {
-    async fn req(&self) -> Result<(), Error> {}
+    async fn from_json(&self, message: String) -> Result<Event, Error> {
+        let m = Msg::new(message).await;
+        let event = m.decode().await?;
+        Ok(event)
+    }
+    async fn req(&self, message: String) -> Result<(), Error> {
+        let m = Msg::new(message).await;
+        let event = m.decode().await?;
+        let db = self.db.lock().await;
+        db.save_event(&event).await?;
+        Ok(())
+    }
 }
