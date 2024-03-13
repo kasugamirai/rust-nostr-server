@@ -1,8 +1,10 @@
 use crate::{Handlers, Server};
 use async_trait::async_trait;
 use futures_util::stream::StreamExt;
+use futures_util::SinkExt;
 use nostr::event::EventIntermediate;
 use nostr::JsonUtil;
+use nostr::RawRelayMessage;
 use nostr::RelayMessage;
 use nostr_database::nostr;
 use nostr_database::{DatabaseError, NostrDatabase, Order};
@@ -59,20 +61,35 @@ impl Conn for WebServer {
 
         println!("New WebSocket connection");
 
-        let (_write, mut read) = ws_stream.split();
+        let (mut write, mut read) = ws_stream.split();
         while let Some(message) = read.next().await {
             match message {
                 Ok(msg) => match msg {
-                    Message::Text(mut txt) => {
+                    Message::Text(txt) => {
+                        print!("Received text: {:?}", txt);
+                        let raw =
+                            RawRelayMessage::from_json(txt).expect("Failed to parse raw message");
                         let relay_message =
-                            RelayMessage::from_json(txt).expect("Failed to parse event");
+                            RelayMessage::try_from(raw).expect("Failed to parse event");
                         if let RelayMessage::Event { event, .. } = relay_message {
                             let event_id = &event.id;
                             let saved = self
                                 .db
                                 .has_event_already_been_saved(event_id)
                                 .await
-                                .expect("Failed to save event");
+                                .expect("Failed to check if event has been saved already");
+                            if !saved {
+                                self.db
+                                    .save_event(&event)
+                                    .await
+                                    .expect("Failed to save event");
+                                write
+                                    .send(Message::Text("ok".to_string()))
+                                    .await
+                                    .expect("Failed to send ok message");
+                                write.close().await.expect("Failed to close WebSocket");
+                                return;
+                            }
                         }
 
                         //TODO:

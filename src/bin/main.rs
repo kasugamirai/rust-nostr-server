@@ -5,6 +5,6 @@ async fn main() {
     // Initialize the logger
     env_logger::init();
 
-    let server = WebServer::new(3030);
+    let server = WebServer::new(3030).await;
     server.run().await;
 }
