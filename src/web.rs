@@ -1,14 +1,19 @@
+use crate::Msg;
 use crate::{Handlers, Server};
 use async_trait::async_trait;
 use futures_util::stream::StreamExt;
 use futures_util::SinkExt;
 use nostr::event::EventIntermediate;
+use nostr::message::MessageHandleError;
+use nostr::ClientMessage;
 use nostr::JsonUtil;
 use nostr::RawRelayMessage;
 use nostr::RelayMessage;
 use nostr_database::nostr;
 use nostr_database::{DatabaseError, NostrDatabase, Order};
+use nostr_rocksdb::nostr::Event;
 use nostr_rocksdb::RocksDatabase;
+use serde_json::json;
 use std::net::SocketAddr;
 use tokio::net::{TcpListener, TcpStream};
 use tokio_tungstenite::accept_async;
@@ -42,6 +47,19 @@ impl WebServer {
         }
     }
 
+    pub async fn echo_message(
+        &self,
+        write: &mut futures_util::stream::SplitSink<
+            tokio_tungstenite::WebSocketStream<tokio::net::TcpStream>,
+            tokio_tungstenite::tungstenite::protocol::Message,
+        >,
+        message: &Message,
+    ) {
+        if let Err(e) = write.send(message.clone()).await {
+            log::error!("Failed to echo message: {}", e);
+        }
+    }
+
     // Note the removal of `&self` from the method signature
 }
 
@@ -66,35 +84,53 @@ impl Conn for WebServer {
             match message {
                 Ok(msg) => match msg {
                     Message::Text(txt) => {
-                        print!("Received text: {:?}", txt);
-                        let raw =
-                            RawRelayMessage::from_json(txt).expect("Failed to parse raw message");
-                        let relay_message =
-                            RelayMessage::try_from(raw).expect("Failed to parse event");
-                        if let RelayMessage::Event { event, .. } = relay_message {
-                            let event_id = &event.id;
-                            let saved = self
-                                .db
-                                .has_event_already_been_saved(event_id)
-                                .await
-                                .expect("Failed to check if event has been saved already");
-                            if !saved {
+                        let client_message = ClientMessage::from_json(txt).unwrap();
+                        match client_message {
+                            ClientMessage::Event(event) => {
                                 self.db
                                     .save_event(&event)
                                     .await
-                                    .expect("Failed to save event");
-                                write
-                                    .send(Message::Text("ok".to_string()))
-                                    .await
-                                    .expect("Failed to send ok message");
-                                write.close().await.expect("Failed to close WebSocket");
-                                return;
-                            }
-                        }
+                                    .expect("Failed to insert event");
+                                //let raw_client_message = Message::Text(Event::as_json(&event));
+                                //let messages = vec![&raw_client_message];
+                                let response = vec![
+                                    "OK",
+                                    "70b10f70c1318967eddf12527799411b1a9780ad9c43858f5e5fcd45486a13a5",
+                                    "false",
+                                    "invalid: created_at too early"
+                                ];
 
-                        //TODO:
+                                let response_json = serde_json::to_string(&response).unwrap();
+                                let response_message = Message::Text(response_json);
+                                let messages = vec![&response_message];
+                                self.echo_message(&mut write, &messages[0]).await;
+                                // self.echo_message(&mut write, &messages[0]).await;
+                            }
+                            ClientMessage::Auth(auth) => {}
+                            ClientMessage::Close(close) => {}
+                            ClientMessage::NegClose { subscription_id } => {}
+                            ClientMessage::Count {
+                                subscription_id,
+                                filters,
+                            } => {}
+                            ClientMessage::Req {
+                                subscription_id,
+                                filters,
+                            } => {}
+                            ClientMessage::NegOpen {
+                                subscription_id,
+                                filter,
+                                id_size,
+                                initial_message,
+                            } => {}
+                            ClientMessage::NegMsg {
+                                subscription_id,
+                                message,
+                            } => {}
+                        }
                     }
 
+                    //TODO:
                     Message::Binary(bin) => {
                         println!("Received binary: {:?}", bin);
                     }

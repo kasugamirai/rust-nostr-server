@@ -1304,6 +1304,7 @@ dependencies = [
  "nostr 0.28.1 (git+https://github.com/rust-nostr/nostr.git?branch=master)",
  "nostr-database",
  "nostr-rocksdb",
+ "serde_json",
  "tokio",
  "tokio-tungstenite",
 ]

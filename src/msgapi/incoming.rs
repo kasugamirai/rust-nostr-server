@@ -13,8 +13,8 @@ impl std::error::Error for Error {}
 impl fmt::Display for Error {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
-            Error::Event(e) => write!(f, "event: {}", e),
-            Error::CheckSignature(e) => write!(f, "check signature: {}", e),
+            Error::Event(e) => write!(f, "{}", e),
+            Error::CheckSignature(e) => write!(f, "{}", e),
         }
     }
 }
@@ -42,7 +42,7 @@ impl Msg {
 }
 
 #[async_trait]
-pub trait Message {
+pub trait IncomingMessage {
     async fn decode(&self) -> Result<Event, Error>;
     async fn is_event(&self, msg: &str) -> Result<bool, Error>;
     async fn convert_to_partial(&self) -> Result<PartialEvent, Error>;
@@ -52,7 +52,7 @@ pub trait Message {
 }
 
 #[async_trait]
-impl Message for Msg {
+impl IncomingMessage for Msg {
     async fn decode(&self) -> Result<Event, Error> {
         let event = Event::from_json(&self.message).map_err(Error::Event)?;
         Ok(event)
