@@ -1,17 +1,16 @@
-use crate::{msgapi};
+use crate::msgapi;
 use nostr_database::{DatabaseError, NostrDatabase, Order};
 use nostr_rocksdb::RocksDatabase;
 use std::fmt;
 use tokio::sync::Mutex;
 
-use crate::Msg;
+use crate::msgapi::IncomingMessage;
 use async_trait::async_trait;
 use nostr::{
     event,
     message::{self, MessageHandleError},
     Event, RawRelayMessage, RelayMessage,
 };
-use crate::msgapi::IncomingMessage;
 
 pub enum Error {
     Event(nostr::event::Error),
@@ -58,6 +57,7 @@ impl From<MessageHandleError> for Error {
 pub struct Server {
     db: Mutex<RocksDatabase>,
 }
+
 impl Server {
     pub async fn new() -> Result<Self, Error> {
         let db = RocksDatabase::open("./db/rocksdb").await?;
@@ -72,9 +72,9 @@ pub trait Handlers {
 #[async_trait]
 impl Handlers for Server {
     async fn req(&self, message: String) -> Result<(), Error> {
-        let m = Msg::new(message).await;
-        let event = m.decode().await?;
-        let db = self.db.lock().await;
+        //let m = Msg::new(message).await;
+        // let event = m.decode().await?;
+        //let db = self.db.lock().await;
         //db.save_event(&event).await?;
         Ok(())
     }

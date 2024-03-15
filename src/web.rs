@@ -1,4 +1,5 @@
-use crate::Msg;
+use crate::IncomingMessage;
+use crate::MessageHandler;
 use crate::{Handlers, Server};
 use async_trait::async_trait;
 use futures_util::stream::StreamExt;
@@ -59,7 +60,6 @@ impl From<DatabaseError> for Error {
 
 pub struct WebServer {
     addr: SocketAddr,
-    db: RocksDatabase,
 }
 
 impl WebServer {
@@ -67,10 +67,7 @@ impl WebServer {
         let addr = format!("127.0.0.1:{}", port)
             .parse()
             .expect("Invalid address");
-        let db = RocksDatabase::open("./db/rocksdb")
-            .await
-            .expect("Failed to open database");
-        WebServer { addr, db }
+        WebServer { addr }
     }
 
     pub async fn run(&self) {
@@ -116,72 +113,20 @@ impl Conn for WebServer {
         };
 
         println!("New WebSocket connection");
+        let msg_handler = IncomingMessage::new()
+            .await
+            .expect("Failed to create message handler");
 
         let (mut write, mut read) = ws_stream.split();
         while let Some(message) = read.next().await {
             match message {
                 Ok(msg) => match msg {
                     Message::Text(txt) => {
-                        let client_message: ClientMessage =
-                            ClientMessage::from_json(txt).expect("Failed to parse client message");
-                        match client_message {
-                            ClientMessage::Event(event) => {
-                                let eid = event.id();
-                                let event_existed = self
-                                    .db
-                                    .has_event_already_been_saved(&eid)
-                                    .await
-                                    .expect("Failed to check if event existed");
-                                print!("Event existed: {}", event_existed);
-                                self.db
-                                    .save_event(&event)
-                                    .await
-                                    .expect("Failed to insert event");
-
-                                //let raw_client_message = Message::Text(Event::as_json(&event));
-                                //let messages = vec![&raw_client_message];
-                                let ids = event.id().to_string();
-                                let context = event.content().to_string();
-                                let response = vec!["OK", &ids, "true", &context];
-
-                                let response_json = serde_json::to_string(&response).unwrap();
-                                let response_message = Message::Text(response_json);
-                                let messages = vec![&response_message];
-                                self.echo_message(&mut write, &messages[0]).await;
-                                // self.echo_message(&mut write, &messages[0]).await;
-                            }
-                            ClientMessage::Auth(auth) => {}
-                            ClientMessage::Close(close) => {}
-                            ClientMessage::NegClose { subscription_id } => {}
-                            ClientMessage::Count {
-                                subscription_id,
-                                filters,
-                            } => {}
-                            ClientMessage::Req {
-                                subscription_id,
-                                filters,
-                            } => {
-                                let order = Order::Desc;
-                                let queried_events = self.db.query(filters, order).await.unwrap();
-                                for event in &queried_events {
-                                    let raw = Event::as_json(&event);
-                                    let event_json: serde_json::Value =
-                                        serde_json::from_str(&raw).unwrap();
-                                    let response = json!(["EVENT", "test", event_json]);
-                                    let response_message = Message::Text(response.to_string());
-                                    self.echo_message(&mut write, &response_message).await;
-                                }
-                            }
-                            ClientMessage::NegOpen {
-                                subscription_id,
-                                filter,
-                                id_size,
-                                initial_message,
-                            } => {}
-                            ClientMessage::NegMsg {
-                                subscription_id,
-                                message,
-                            } => {}
+                        let m = msg_handler.to_client_message(&txt).await.unwrap();
+                        let msgs = msg_handler.handlers(m).await.unwrap();
+                        for msg in msgs {
+                            let message = Message::Text(msg);
+                            self.echo_message(&mut write, &message).await;
                         }
                     }
 

@@ -1,20 +1,33 @@
 use async_trait::async_trait;
-use nostr::{Event, JsonUtil, PartialEvent, SECP256K1};
-use std::{fmt, result};
+use futures_util::future::ok;
+use nostr::JsonUtil;
+use nostr::{
+    event, message::MessageHandleError, ClientMessage, Event, RawRelayMessage, RelayMessage,
+};
+use nostr_database::nostr;
+use nostr_database::{DatabaseError, NostrDatabase, Order};
+use nostr_rocksdb::RocksDatabase;
 
-pub enum Error {
-    Event(nostr::event::Error),
-    CheckSignature(nostr::event::partial::Error),
+#[derive(Debug)]
+pub struct IncomingMessage {
+    db: RocksDatabase,
 }
 
-#[cfg(feature = "std")]
-impl std::error::Error for Error {}
+#[derive(Debug)]
+pub enum Error {
+    Event(event::Error),
+    MessageHandleError(MessageHandleError),
+    DatabaseError(nostr_rocksdb::database::DatabaseError),
+    ToClientMessage(serde_json::Error),
+}
 
-impl fmt::Display for Error {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+impl std::fmt::Display for Error {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         match self {
-            Error::Event(e) => write!(f, "{}", e),
-            Error::CheckSignature(e) => write!(f, "{}", e),
+            Self::Event(e) => write!(f, "event: {}", e),
+            Self::MessageHandleError(e) => write!(f, "message handle error: {}", e),
+            Self::DatabaseError(e) => write!(f, "database error: {}", e),
+            Self::ToClientMessage(e) => write!(f, "to client message error: {}", e),
         }
     }
 }
@@ -25,71 +38,108 @@ impl From<nostr::event::Error> for Error {
     }
 }
 
-impl From<nostr::event::partial::Error> for Error {
-    fn from(e: nostr::event::partial::Error) -> Self {
-        Self::CheckSignature(e)
+impl From<serde_json::Error> for Error {
+    fn from(e: serde_json::Error) -> Self {
+        Self::ToClientMessage(e)
     }
 }
 
-pub struct Msg {
-    message: String,
+impl From<nostr_rocksdb::database::DatabaseError> for Error {
+    fn from(e: nostr_rocksdb::database::DatabaseError) -> Self {
+        Self::DatabaseError(e)
+    }
 }
 
-impl Msg {
-    pub async fn new(msg: String) -> Self {
-        Msg { message: msg }
+impl From<MessageHandleError> for Error {
+    fn from(e: MessageHandleError) -> Self {
+        Self::MessageHandleError(e)
+    }
+}
+
+impl IncomingMessage {
+    pub async fn new() -> Result<Self, Error> {
+        let db = RocksDatabase::open("./db/rocksdb").await?;
+        Ok(IncomingMessage { db })
     }
 }
 
 #[async_trait]
-pub trait IncomingMessage {
-    async fn decode(&self) -> Result<Event, Error>;
-    async fn is_event(&self, msg: &str) -> Result<bool, Error>;
-    async fn convert_to_partial(&self) -> Result<PartialEvent, Error>;
-    async fn check_signature_ctx(&self) -> result::Result<bool, Error>;
-    async fn check_signature(&self) -> result::Result<bool, Error>;
-    async fn exists(&self) -> bool;
+pub trait MessageHandler {
+    async fn handlers(&self, ClientMessage: ClientMessage) -> Result<Vec<String>, Error>;
+    async fn to_client_message(&self, txt: &str) -> Result<ClientMessage, Error>;
 }
 
 #[async_trait]
-impl IncomingMessage for Msg {
-    async fn decode(&self) -> Result<Event, Error> {
-        let event = Event::from_json(&self.message).map_err(Error::Event)?;
-        Ok(event)
+impl MessageHandler for IncomingMessage {
+    async fn to_client_message(&self, txt: &str) -> Result<ClientMessage, Error> {
+        let ret = <ClientMessage as nostr::JsonUtil>::from_json(txt)?;
+        Ok(ret)
     }
+    async fn handlers(&self, ClientMessage: ClientMessage) -> Result<Vec<String>, Error> {
+        match ClientMessage {
+            ClientMessage::Event(event) => {
+                let eid = event.id();
+                let event_existed = self.db.has_event_already_been_saved(&eid).await?;
+                self.db.save_event(&event).await?;
+                //let raw_client_message = Message::Text(Event::as_json(&event));
+                //let messages = vec![&raw_client_message];
+                let ids = event.id().to_string();
+                let context = event.content().to_string();
+                let response = vec!["OK", &ids, "true", &context];
 
-    async fn is_event(&self, msg: &str) -> Result<bool, Error> {
-        match Event::from_json(&msg) {
-            Ok(_) => Ok(true),
-            Err(e) => Err(Error::Event(e)),
+                let response_str = vec![serde_json::to_string(&response)?];
+                Ok(response_str)
+            }
+            ClientMessage::Auth(auth) => {
+                let ret = vec!["TODO".to_string()];
+                Ok(ret)
+            }
+            ClientMessage::Close(close) => {
+                let ret = vec!["TODO".to_string()];
+                Ok(ret)
+            }
+            ClientMessage::NegClose { subscription_id } => {
+                let ret = vec!["TODO".to_string()];
+                Ok(ret)
+            }
+            ClientMessage::Count {
+                subscription_id,
+                filters,
+            } => {
+                let ret = vec!["TODO".to_string()];
+                Ok(ret)
+            }
+            ClientMessage::Req {
+                subscription_id,
+                filters,
+            } => {
+                let order = Order::Desc;
+                let queried_events = self.db.query(filters, order).await?;
+                let mut ret = vec![];
+                for event in &queried_events {
+                    let raw = Event::as_json(&event);
+                    let event_json: serde_json::Value = serde_json::from_str(&raw)?;
+                    let response = serde_json::json!(["EVENT", "test", event_json]);
+                    ret.push(response.to_string());
+                }
+                Ok(ret)
+            }
+            ClientMessage::NegOpen {
+                subscription_id,
+                filter,
+                id_size,
+                initial_message,
+            } => {
+                let ret = vec!["TODO".to_string()];
+                Ok(ret)
+            }
+            ClientMessage::NegMsg {
+                subscription_id,
+                message,
+            } => {
+                let ret = vec!["TODO".to_string()];
+                Ok(ret)
+            }
         }
-    }
-
-    async fn convert_to_partial(&self) -> Result<PartialEvent, Error> {
-        let event = self.decode().await?;
-        let partial_event = PartialEvent {
-            id: event.id,
-            pubkey: event.pubkey,
-            sig: event.sig,
-        };
-
-        Ok(partial_event)
-    }
-
-    async fn check_signature_ctx(&self) -> result::Result<bool, Error> {
-        let partial_event = self.convert_to_partial().await?;
-        PartialEvent::verify_signature_with_ctx(&partial_event, &SECP256K1)?;
-        Ok(true)
-    }
-
-    async fn check_signature(&self) -> result::Result<bool, Error> {
-        let partial_event = self.convert_to_partial().await?;
-        PartialEvent::verify_signature(&partial_event)?;
-        Ok(true)
-    }
-
-    async fn exists(&self) -> bool {
-        //TODO: Implement this
-        false
     }
 }
