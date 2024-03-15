@@ -11,12 +11,15 @@ use nostr::RawRelayMessage;
 use nostr::RelayMessage;
 use nostr_database::nostr;
 use nostr_database::{DatabaseError, NostrDatabase, Order};
-use nostr_rocksdb::nostr::Event;
+use nostr_rocksdb::nostr::{event, Event};
 use nostr_rocksdb::RocksDatabase;
 use serde_json::json;
 use std::net::SocketAddr;
+use std::os::macos::raw;
+use std::thread::sleep;
 use tokio::net::{TcpListener, TcpStream};
 use tokio_tungstenite::accept_async;
+use tokio_tungstenite::tungstenite::http::response;
 use tokio_tungstenite::tungstenite::protocol::Message;
 
 pub struct WebServer {
@@ -84,7 +87,8 @@ impl Conn for WebServer {
             match message {
                 Ok(msg) => match msg {
                     Message::Text(txt) => {
-                        let client_message = ClientMessage::from_json(txt).unwrap();
+                        let client_message: ClientMessage =
+                            ClientMessage::from_json(txt).expect("Failed to parse client message");
                         match client_message {
                             ClientMessage::Event(event) => {
                                 self.db
@@ -93,12 +97,8 @@ impl Conn for WebServer {
                                     .expect("Failed to insert event");
                                 //let raw_client_message = Message::Text(Event::as_json(&event));
                                 //let messages = vec![&raw_client_message];
-                                let response = vec![
-                                    "OK",
-                                    "70b10f70c1318967eddf12527799411b1a9780ad9c43858f5e5fcd45486a13a5",
-                                    "false",
-                                    "invalid: created_at too early"
-                                ];
+                                let ids = event.id().to_string();
+                                let response = vec!["OK", &ids, "true", "hahahahahaha"];
 
                                 let response_json = serde_json::to_string(&response).unwrap();
                                 let response_message = Message::Text(response_json);
@@ -116,7 +116,18 @@ impl Conn for WebServer {
                             ClientMessage::Req {
                                 subscription_id,
                                 filters,
-                            } => {}
+                            } => {
+                                let order = Order::Asc;
+                                let queried_events = self.db.query(filters, order).await.unwrap();
+                                for event in &queried_events {
+                                    let raw = Event::as_json(&event);
+                                    let event_json: serde_json::Value =
+                                        serde_json::from_str(&raw).unwrap();
+                                    let response = json!(["EVENT", "test", event_json]);
+                                    let response_message = Message::Text(response.to_string());
+                                    self.echo_message(&mut write, &response_message).await;
+                                }
+                            }
                             ClientMessage::NegOpen {
                                 subscription_id,
                                 filter,
