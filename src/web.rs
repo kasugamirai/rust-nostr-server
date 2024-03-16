@@ -18,6 +18,7 @@ use serde_json::json;
 use std::fmt;
 use std::net::SocketAddr;
 use std::os::macos::raw;
+use std::sync::Arc;
 use std::thread::sleep;
 use tokio::net::{TcpListener, TcpStream};
 use tokio_tungstenite::accept_async;
@@ -28,6 +29,7 @@ pub enum Error {
     Event(nostr::event::Error),
     MessageHandleError(MessageHandleError),
     DatabaseError(DatabaseError),
+    TcpListenerError(std::io::Error),
 }
 
 impl fmt::Display for Error {
@@ -36,7 +38,14 @@ impl fmt::Display for Error {
             Error::Event(e) => write!(f, "event: {}", e),
             Error::MessageHandleError(e) => write!(f, "message handle error: {}", e),
             Error::DatabaseError(e) => write!(f, "database error: {}", e),
+            Error::TcpListenerError(e) => write!(f, "tcp listener error: {}", e),
         }
+    }
+}
+
+impl From<std::io::Error> for Error {
+    fn from(e: std::io::Error) -> Self {
+        Self::TcpListenerError(e)
     }
 }
 
@@ -57,7 +66,6 @@ impl From<DatabaseError> for Error {
         Self::DatabaseError(e)
     }
 }
-
 pub struct WebServer {
     addr: SocketAddr,
 }
@@ -70,16 +78,28 @@ impl WebServer {
         WebServer { addr }
     }
 
-    pub async fn run(&self) {
-        let listener = TcpListener::bind(&self.addr)
-            .await
-            .expect("cannot bind to port");
+    pub async fn start_listening(&self) -> Result<TcpListener, Error> {
+        let listener = TcpListener::bind(&self.addr).await?;
         println!("WebSocket server running at {}", self.addr);
+        Ok(listener)
+    }
 
+    pub async fn accept_connection(&self, listener: TcpListener) {
         while let Ok((stream, _)) = listener.accept().await {
             WebServer::handle_connection(&self, stream).await;
-            //tokio::spawn(WebServer::handle_connection(&self, stream));
         }
+    }
+
+    pub async fn run(&self) {
+        let _listener = match self.start_listening().await {
+            Ok(l) => {
+                self.accept_connection(l).await;
+            }
+            Err(e) => {
+                log::error!("Failed to start listening: {}", e);
+                return;
+            }
+        };
     }
 
     pub async fn echo_message(
@@ -94,8 +114,6 @@ impl WebServer {
             log::error!("Failed to echo message: {}", e);
         }
     }
-
-    // Note the removal of `&self` from the method signature
 }
 
 pub trait Conn {
