@@ -5,12 +5,12 @@ edition = "2021"
 
 [dependencies]
 async-trait = "0.1.77"
-tokio = { version = "1", features = ["full"] }
-nostr = { git = "https://github.com/rust-nostr/nostr.git", branch = "master" }
-tokio-tungstenite = "0.21.0"
+env_logger = "0.11.3"
 futures-util = "0.3.30"
 log = "0.4.21"
-env_logger = "0.11.3"
+nostr = "0.29.0"
 nostr-rocksdb = "0.29.0"
 nostr-database = "0.29.0"
 serde_json = "1"
+tokio = { version = "1", features = ["full"] }
+tokio-tungstenite = "0.21.0"
