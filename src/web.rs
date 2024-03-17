@@ -17,7 +17,7 @@ use nostr_rocksdb::RocksDatabase;
 use serde_json::json;
 use std::fmt;
 use std::net::SocketAddr;
-use std::os::macos::raw;
+//use std::os::macos::raw;
 use std::sync::Arc;
 use std::thread::sleep;
 use tokio::net::{TcpListener, TcpStream};
@@ -66,8 +66,11 @@ impl From<DatabaseError> for Error {
         Self::DatabaseError(e)
     }
 }
+
+#[derive(Clone)]
 pub struct WebServer {
     addr: SocketAddr,
+    handler: IncomingMessage,
 }
 
 impl WebServer {
@@ -75,7 +78,10 @@ impl WebServer {
         let addr = format!("127.0.0.1:{}", port)
             .parse()
             .expect("Invalid address");
-        WebServer { addr }
+        let handler = IncomingMessage::new()
+            .await
+            .expect("Failed to create message handler");
+        Self { addr, handler }
     }
 
     pub async fn start_listening(&self) -> Result<TcpListener, Error> {
@@ -86,7 +92,10 @@ impl WebServer {
 
     pub async fn accept_connection(&self, listener: TcpListener) {
         while let Ok((stream, _)) = listener.accept().await {
-            WebServer::handle_connection(&self, stream).await;
+            let this = self.clone();
+            tokio::spawn(async move {
+                this.handle_connection(stream).await;
+            });
         }
     }
 
@@ -131,17 +140,14 @@ impl Conn for WebServer {
         };
 
         println!("New WebSocket connection");
-        let msg_handler = IncomingMessage::new()
-            .await
-            .expect("Failed to create message handler");
 
         let (mut write, mut read) = ws_stream.split();
         while let Some(message) = read.next().await {
             match message {
                 Ok(msg) => match msg {
                     Message::Text(txt) => {
-                        let m = msg_handler.to_client_message(&txt).await.unwrap();
-                        let msgs = msg_handler.handlers(m).await.unwrap();
+                        let m = self.handler.to_client_message(&txt).await.unwrap();
+                        let msgs = self.handler.handlers(m).await.unwrap();
                         for msg in msgs {
                             let message = Message::Text(msg);
                             self.echo_message(&mut write, &message).await;

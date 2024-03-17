@@ -8,7 +8,7 @@ use nostr_database::nostr;
 use nostr_database::{DatabaseError, NostrDatabase, Order};
 use nostr_rocksdb::RocksDatabase;
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct IncomingMessage {
     db: RocksDatabase,
 }
@@ -75,7 +75,7 @@ impl MessageHandler for IncomingMessage {
         let ret = <ClientMessage as nostr::JsonUtil>::from_json(txt)?;
         Ok(ret)
     }
-    async fn handlers(&self, ClientMessage: ClientMessage) -> Result<Vec<String>, Error> {
+async fn handlers(&self, ClientMessage: ClientMessage) -> Result<Vec<String>, Error> {
         match ClientMessage {
             ClientMessage::Event(event) => {
                 let eid = event.id();
