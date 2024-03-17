@@ -27,25 +27,25 @@ use tokio_tungstenite::tungstenite::protocol::Message;
 
 pub enum Error {
     Event(nostr::event::Error),
-    MessageHandleError(MessageHandleError),
-    DatabaseError(DatabaseError),
-    TcpListenerError(std::io::Error),
+    MessageHandle(MessageHandleError),
+    Database(DatabaseError),
+    TcpListener(std::io::Error),
 }
 
 impl fmt::Display for Error {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
             Error::Event(e) => write!(f, "event: {}", e),
-            Error::MessageHandleError(e) => write!(f, "message handle error: {}", e),
-            Error::DatabaseError(e) => write!(f, "database error: {}", e),
-            Error::TcpListenerError(e) => write!(f, "tcp listener error: {}", e),
+            Error::MessageHandle(e) => write!(f, "message handle error: {}", e),
+            Error::Database(e) => write!(f, "database error: {}", e),
+            Error::TcpListener(e) => write!(f, "tcp listener error: {}", e),
         }
     }
 }
 
 impl From<std::io::Error> for Error {
     fn from(e: std::io::Error) -> Self {
-        Self::TcpListenerError(e)
+        Self::TcpListener(e)
     }
 }
 
@@ -57,13 +57,13 @@ impl From<nostr::event::Error> for Error {
 
 impl From<MessageHandleError> for Error {
     fn from(e: MessageHandleError) -> Self {
-        Self::MessageHandleError(e)
+        Self::MessageHandle(e)
     }
 }
 
 impl From<DatabaseError> for Error {
     fn from(e: DatabaseError) -> Self {
-        Self::DatabaseError(e)
+        Self::Database(e)
     }
 }
 
@@ -100,13 +100,12 @@ impl WebServer {
     }
 
     pub async fn run(&self) {
-        let _listener = match self.start_listening().await {
+        match self.start_listening().await {
             Ok(l) => {
                 self.accept_connection(l).await;
             }
             Err(e) => {
                 log::error!("Failed to start listening: {}", e);
-                return;
             }
         };
     }

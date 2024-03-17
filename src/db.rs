@@ -14,31 +14,31 @@ use nostr::{
 
 pub enum Error {
     Event(nostr::event::Error),
-    MessageHandleError(MessageHandleError),
-    MsgapiError(msgapi::Error),
-    DatabaseError(DatabaseError),
+    MessageHandle(MessageHandleError),
+    Msgapi(msgapi::Error),
+    Database(DatabaseError),
 }
 
 impl fmt::Display for Error {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
             Error::Event(e) => write!(f, "event: {}", e),
-            Error::MessageHandleError(e) => write!(f, "message handle error: {}", e),
-            Error::MsgapiError(e) => write!(f, "msgapi error: {}", e),
-            Error::DatabaseError(e) => write!(f, "database error: {}", e),
+            Error::MessageHandle(e) => write!(f, "message handle error: {}", e),
+            Error::Msgapi(e) => write!(f, "msgapi error: {}", e),
+            Error::Database(e) => write!(f, "database error: {}", e),
         }
     }
 }
 
 impl From<DatabaseError> for Error {
     fn from(e: DatabaseError) -> Self {
-        Self::DatabaseError(e)
+        Self::Database(e)
     }
 }
 
 impl From<msgapi::Error> for Error {
     fn from(e: msgapi::Error) -> Self {
-        Self::MsgapiError(e)
+        Self::Msgapi(e)
     }
 }
 
@@ -50,7 +50,7 @@ impl From<nostr::event::Error> for Error {
 
 impl From<MessageHandleError> for Error {
     fn from(e: MessageHandleError) -> Self {
-        Self::MessageHandleError(e)
+        Self::MessageHandle(e)
     }
 }
 
@@ -61,7 +61,7 @@ pub struct Server {
 impl Server {
     pub async fn new() -> Result<Self, Error> {
         let db = RocksDatabase::open("./db/rocksdb").await?;
-        Ok(Server { db: Mutex::new(db) })
+        Ok(Self { db: Mutex::new(db) })
     }
 }
 #[async_trait]
