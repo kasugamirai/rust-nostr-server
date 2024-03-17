@@ -17,7 +17,7 @@ use nostr_rocksdb::RocksDatabase;
 use serde_json::json;
 use std::fmt;
 use std::net::SocketAddr;
-use std::os::macos::raw;
+//use std::os::macos::raw;
 use std::sync::Arc;
 use std::thread::sleep;
 use tokio::net::{TcpListener, TcpStream};
@@ -27,25 +27,25 @@ use tokio_tungstenite::tungstenite::protocol::Message;
 
 pub enum Error {
     Event(nostr::event::Error),
-    MessageHandleError(MessageHandleError),
-    DatabaseError(DatabaseError),
-    TcpListenerError(std::io::Error),
+    MessageHandle(MessageHandleError),
+    Database(DatabaseError),
+    TcpListener(std::io::Error),
 }
 
 impl fmt::Display for Error {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
             Error::Event(e) => write!(f, "event: {}", e),
-            Error::MessageHandleError(e) => write!(f, "message handle error: {}", e),
-            Error::DatabaseError(e) => write!(f, "database error: {}", e),
-            Error::TcpListenerError(e) => write!(f, "tcp listener error: {}", e),
+            Error::MessageHandle(e) => write!(f, "message handle error: {}", e),
+            Error::Database(e) => write!(f, "database error: {}", e),
+            Error::TcpListener(e) => write!(f, "tcp listener error: {}", e),
         }
     }
 }
 
 impl From<std::io::Error> for Error {
     fn from(e: std::io::Error) -> Self {
-        Self::TcpListenerError(e)
+        Self::TcpListener(e)
     }
 }
 
@@ -57,17 +57,20 @@ impl From<nostr::event::Error> for Error {
 
 impl From<MessageHandleError> for Error {
     fn from(e: MessageHandleError) -> Self {
-        Self::MessageHandleError(e)
+        Self::MessageHandle(e)
     }
 }
 
 impl From<DatabaseError> for Error {
     fn from(e: DatabaseError) -> Self {
-        Self::DatabaseError(e)
+        Self::Database(e)
     }
 }
+
+#[derive(Clone)]
 pub struct WebServer {
     addr: SocketAddr,
+    handler: IncomingMessage,
 }
 
 impl WebServer {
@@ -75,7 +78,10 @@ impl WebServer {
         let addr = format!("127.0.0.1:{}", port)
             .parse()
             .expect("Invalid address");
-        WebServer { addr }
+        let handler = IncomingMessage::new()
+            .await
+            .expect("Failed to create message handler");
+        Self { addr, handler }
     }
 
     pub async fn start_listening(&self) -> Result<TcpListener, Error> {
@@ -86,18 +92,20 @@ impl WebServer {
 
     pub async fn accept_connection(&self, listener: TcpListener) {
         while let Ok((stream, _)) = listener.accept().await {
-            WebServer::handle_connection(&self, stream).await;
+            let this = self.clone();
+            tokio::spawn(async move {
+                this.handle_connection(stream).await;
+            });
         }
     }
 
     pub async fn run(&self) {
-        let _listener = match self.start_listening().await {
+        match self.start_listening().await {
             Ok(l) => {
                 self.accept_connection(l).await;
             }
             Err(e) => {
                 log::error!("Failed to start listening: {}", e);
-                return;
             }
         };
     }
@@ -131,17 +139,14 @@ impl Conn for WebServer {
         };
 
         println!("New WebSocket connection");
-        let msg_handler = IncomingMessage::new()
-            .await
-            .expect("Failed to create message handler");
 
         let (mut write, mut read) = ws_stream.split();
         while let Some(message) = read.next().await {
             match message {
                 Ok(msg) => match msg {
                     Message::Text(txt) => {
-                        let m = msg_handler.to_client_message(&txt).await.unwrap();
-                        let msgs = msg_handler.handlers(m).await.unwrap();
+                        let m = self.handler.to_client_message(&txt).await.unwrap();
+                        let msgs = self.handler.handlers(m).await.unwrap();
                         for msg in msgs {
                             let message = Message::Text(msg);
                             self.echo_message(&mut write, &message).await;
