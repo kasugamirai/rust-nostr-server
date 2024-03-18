@@ -1,3 +1,5 @@
+use std::iter::Successors;
+
 use async_trait::async_trait;
 use futures_util::future::ok;
 use nostr::JsonUtil;
@@ -7,6 +9,7 @@ use nostr::{
 use nostr_database::nostr;
 use nostr_database::{DatabaseError, NostrDatabase, Order};
 use nostr_rocksdb::RocksDatabase;
+use tokio_tungstenite::tungstenite::http::response;
 
 #[derive(Debug, Clone)]
 pub struct IncomingMessage {
@@ -78,14 +81,21 @@ impl MessageHandler for IncomingMessage {
     async fn handlers(&self, client_message: ClientMessage) -> Result<Vec<String>, Error> {
         match client_message {
             ClientMessage::Event(event) => {
+                let response;
                 let eid = event.id();
-                let event_existed = self.db.has_event_already_been_saved(&eid).await?;
-                self.db.save_event(&event).await?;
-                //let raw_client_message = Message::Text(Event::as_json(&event));
-                //let messages = vec![&raw_client_message];
                 let ids = event.id().to_string();
                 let context = event.content().to_string();
-                let response = vec!["OK", &ids, "true", &context];
+                let event_existed = self.db.has_event_already_been_saved(&eid).await?;
+                if !event_existed {
+                    let sucess = self.db.save_event(&event).await?;
+                    if sucess {
+                        response = vec!["OK", &ids, "true", &context];
+                    } else {
+                        response = vec!["OK", &ids, "false", &context];
+                    }
+                } else {
+                    response = vec!["OK", &ids, "true", "duplicate"];
+                }
 
                 let response_str = vec![serde_json::to_string(&response)?];
                 Ok(response_str)
