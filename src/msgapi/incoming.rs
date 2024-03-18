@@ -84,14 +84,14 @@ impl MessageHandler for IncomingMessage {
                 let response;
                 let eid = event.id();
                 let ids = event.id().to_string();
-                let context = event.content().to_string();
+                let content = event.content().to_string();
                 let event_existed = self.db.has_event_already_been_saved(&eid).await?;
                 if !event_existed {
                     let sucess = self.db.save_event(&event).await?;
                     if sucess {
-                        response = vec!["OK", &ids, "true", &context];
+                        response = vec!["OK", &ids, "true", &content];
                     } else {
-                        response = vec!["OK", &ids, "false", &context];
+                        response = vec!["OK", &ids, "false", &content];
                     }
                 } else {
                     response = vec!["OK", &ids, "true", "duplicate"];
