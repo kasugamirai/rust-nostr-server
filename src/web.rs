@@ -126,9 +126,41 @@ impl WebServer {
 
 pub trait Conn {
     async fn handle_connection(&self, stream: TcpStream);
+    async fn close_connection(
+        &self,
+        write: &mut futures_util::stream::SplitSink<
+            tokio_tungstenite::WebSocketStream<tokio::net::TcpStream>,
+            tokio_tungstenite::tungstenite::protocol::Message,
+        >,
+    );
 }
 
 impl Conn for WebServer {
+    async fn close_connection(
+        &self,
+        write: &mut futures_util::stream::SplitSink<
+            tokio_tungstenite::WebSocketStream<tokio::net::TcpStream>,
+            tokio_tungstenite::tungstenite::protocol::Message,
+        >,
+    ) {
+        let close_message = tokio_tungstenite::tungstenite::protocol::Message::Close(Some(
+            tokio_tungstenite::tungstenite::protocol::CloseFrame {
+                code: tokio_tungstenite::tungstenite::protocol::frame::coding::CloseCode::Normal,
+                reason: "".into(),
+            },
+        ));
+
+        // Send the close message to the client.
+        if let Err(e) = write.send(close_message).await {
+            log::error!("Failed to send close message: {}", e);
+        }
+
+        // Close the underlying WebSocket stream.
+        if let Err(e) = write.close().await {
+            log::error!("Failed to close WebSocket stream: {}", e);
+        }
+    }
+
     async fn handle_connection(&self, stream: TcpStream) {
         let ws_stream = match accept_async(stream).await {
             Ok(ws) => ws,
@@ -150,6 +182,7 @@ impl Conn for WebServer {
                         for msg in msgs {
                             let message = Message::Text(msg);
                             self.echo_message(&mut write, &message).await;
+                            self.close_connection(&mut write).await;
                         }
                     }
 
