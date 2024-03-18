@@ -4,6 +4,7 @@ pub use web::WebServer;
 mod msgapi;
 pub use db::Handlers;
 pub use db::Server;
+pub use msgapi::HandlerResult;
 pub use msgapi::IncomingMessage;
 pub use msgapi::MessageHandler;
 

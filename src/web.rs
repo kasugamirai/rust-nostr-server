@@ -2,6 +2,7 @@ use crate::IncomingMessage;
 use crate::MessageHandler;
 //use crate::{Handlers, Server};
 use async_trait::async_trait;
+use futures_util::stream::SplitSink;
 use futures_util::stream::StreamExt;
 use futures_util::SinkExt;
 use nostr::event::EventIntermediate;
@@ -17,7 +18,9 @@ use nostr_rocksdb::RocksDatabase;
 use serde_json::json;
 use std::fmt;
 use std::net::SocketAddr;
+use tokio_tungstenite::WebSocketStream;
 //use std::os::macos::raw;
+use crate::HandlerResult;
 use std::sync::Arc;
 use std::thread::sleep;
 use tokio::net::{TcpListener, TcpStream};
@@ -133,6 +136,11 @@ pub trait Conn {
             tokio_tungstenite::tungstenite::protocol::Message,
         >,
     );
+    async fn handle_result(
+        &self,
+        result: HandlerResult,
+        write: &mut SplitSink<WebSocketStream<TcpStream>, Message>,
+    );
 }
 
 impl Conn for WebServer {
@@ -162,13 +170,14 @@ impl Conn for WebServer {
     }
 
     async fn handle_connection(&self, stream: TcpStream) {
-        let ws_stream = match accept_async(stream).await {
-            Ok(ws) => ws,
-            Err(e) => {
-                log::error!("WebSocket handler failed: {}", e);
-                return;
-            }
-        };
+        let ws_stream: tokio_tungstenite::WebSocketStream<TcpStream> =
+            match accept_async(stream).await {
+                Ok(ws) => ws,
+                Err(e) => {
+                    log::error!("WebSocket handler failed: {}", e);
+                    return;
+                }
+            };
 
         println!("New WebSocket connection");
 
@@ -178,12 +187,8 @@ impl Conn for WebServer {
                 Ok(msg) => match msg {
                     Message::Text(txt) => {
                         let m = self.handler.to_client_message(&txt).await.unwrap();
-                        let msgs = self.handler.handlers(m).await.unwrap();
-                        for msg in msgs {
-                            let message = Message::Text(msg);
-                            self.echo_message(&mut write, &message).await;
-                            self.close_connection(&mut write).await;
-                        }
+                        let results = self.handler.handlers(m).await.unwrap();
+                        self.handle_result(results, &mut write).await;
                     }
 
                     //TODO:
@@ -199,6 +204,26 @@ impl Conn for WebServer {
                 Err(e) => {
                     log::error!("WebSocket handler failed: {}", e);
                     return;
+                }
+            }
+        }
+    }
+
+    async fn handle_result(
+        &self,
+        result: HandlerResult,
+        mut write: &mut SplitSink<WebSocketStream<TcpStream>, Message>,
+    ) {
+        match result {
+            HandlerResult::String(msg) => {
+                let message = Message::Text(msg);
+                self.echo_message(&mut write, &message).await;
+            }
+            HandlerResult::Strings(msgs) => {
+                for msg in msgs {
+                    let message = Message::Text(msg);
+                    self.echo_message(&mut write, &message).await;
+                    self.close_connection(&mut write).await;
                 }
             }
         }
