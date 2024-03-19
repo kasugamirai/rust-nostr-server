@@ -5,6 +5,7 @@ use async_trait::async_trait;
 use futures_util::stream::SplitSink;
 use futures_util::stream::StreamExt;
 use futures_util::SinkExt;
+use log::debug;
 use nostr::event::EventIntermediate;
 use nostr::message::MessageHandleError;
 use nostr::ClientMessage;
@@ -15,6 +16,7 @@ use nostr_database::nostr;
 use nostr_database::{DatabaseError, NostrDatabase, Order};
 use nostr_rocksdb::nostr::{event, Event};
 use nostr_rocksdb::RocksDatabase;
+use serde_json::de;
 use serde_json::json;
 use std::fmt;
 use std::net::SocketAddr;
@@ -28,6 +30,7 @@ use tokio_tungstenite::accept_async;
 use tokio_tungstenite::tungstenite::http::response;
 use tokio_tungstenite::tungstenite::protocol::Message;
 
+#[derive(Debug)]
 pub enum Error {
     Event(nostr::event::Error),
     MessageHandle(MessageHandleError),
@@ -70,10 +73,16 @@ impl From<DatabaseError> for Error {
     }
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct WebServer {
     addr: SocketAddr,
     handler: IncomingMessage,
+}
+
+impl fmt::Display for WebServer {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "WebServer at {}, handler: {:?}", self.addr, self.handler)
+    }
 }
 
 impl WebServer {
@@ -84,6 +93,8 @@ impl WebServer {
         let handler = IncomingMessage::new()
             .await
             .expect("Failed to create message handler");
+        debug!("WebServer created at {}", addr);
+        //debug!("Message handler created: {:?}", handler);
         Self { addr, handler }
     }
 
@@ -218,6 +229,7 @@ impl Conn for WebServer {
             HandlerResult::String(msg) => {
                 let message = Message::Text(msg);
                 self.echo_message(&mut write, &message).await;
+                self.close_connection(&mut write).await;
             }
             HandlerResult::Strings(msgs) => {
                 for msg in msgs {

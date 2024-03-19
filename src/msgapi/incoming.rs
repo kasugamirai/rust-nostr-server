@@ -2,10 +2,11 @@ use std::iter::Successors;
 
 use async_trait::async_trait;
 use futures_util::future::ok;
-use nostr::JsonUtil;
+use nostr::event::raw;
 use nostr::{
     event, message::MessageHandleError, ClientMessage, Event, RawRelayMessage, RelayMessage,
 };
+use nostr::{JsonUtil, SubscriptionId};
 use nostr_database::nostr;
 use nostr_database::{DatabaseError, NostrDatabase, Order};
 use nostr_rocksdb::RocksDatabase;
@@ -145,11 +146,14 @@ impl MessageHandler for IncomingMessage {
             }
             ClientMessage::Req { filters, .. } => {
                 let order = Order::Desc;
+
                 let queried_events = self.db.query(filters, order).await?;
                 let mut ret = Vec::with_capacity(queried_events.len());
-                for event in queried_events.into_iter() {
-                    let response = serde_json::json!(["EVENT", "test", event]);
-                    ret.push(response.to_string());
+                for e in queried_events.into_iter() {
+                    let relay_messages =
+                        RelayMessage::event(SubscriptionId::new("random_string"), e);
+                    let serialized = serde_json::to_string(&relay_messages)?;
+                    ret.push(serialized);
                 }
                 Ok(HandlerResult::Strings(ret))
             }
