@@ -2,6 +2,7 @@ use std::iter::Successors;
 
 use async_trait::async_trait;
 use futures_util::future::ok;
+use futures_util::stream::Count;
 use nostr::event::raw;
 use nostr::{
     event, message::MessageHandleError, ClientMessage, Event, RawRelayMessage, RelayMessage,
@@ -126,8 +127,23 @@ impl MessageHandler for IncomingMessage {
                 Ok(HandlerResult::Strings(response_str))
             }
             ClientMessage::Auth(auth) => {
-                let ret = vec!["TODO".to_string()];
-                Ok(HandlerResult::Strings(ret))
+                let event_id = auth.id();
+
+                match self.check_signature(*auth).await {
+                    Ok(_) => {
+                        let status: bool = true;
+                        let message: &str = "auth signature is valid";
+                        let response: RelayMessage = RelayMessage::ok(event_id, status, message);
+                        let response_str: String = serde_json::to_string(&response)?;
+                        return Ok(HandlerResult::String(response_str));
+                    }
+                    Err(e) => {
+                        let err = e.to_string();
+                        let response = vec!["OK", "false", &err];
+                        let response_str = serde_json::to_string(&response)?;
+                        return Ok(HandlerResult::String(response_str));
+                    }
+                }
             }
             ClientMessage::Close(close) => {
                 let ret = vec!["TODO".to_string()];
@@ -141,8 +157,10 @@ impl MessageHandler for IncomingMessage {
                 subscription_id,
                 filters,
             } => {
-                let ret = vec!["TODO".to_string()];
-                Ok(HandlerResult::Strings(ret))
+                let count = self.db.count(filters).await?;
+                let response = RelayMessage::count(subscription_id, count);
+                let response_str = serde_json::to_string(&response)?;
+                Ok(HandlerResult::String(response_str))
             }
             ClientMessage::Req { filters, .. } => {
                 let order = Order::Desc;
@@ -163,7 +181,7 @@ impl MessageHandler for IncomingMessage {
                 id_size,
                 initial_message,
             } => {
-                let ret = vec!["TODO".to_string()];
+                let ret: Vec<String> = vec!["TODO".to_string()];
                 Ok(HandlerResult::Strings(ret))
             }
             ClientMessage::NegMsg {

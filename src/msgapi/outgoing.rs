@@ -36,11 +36,11 @@ impl OutgoingMessage {
     }
 }
 
-pub trait Handler {
+pub trait OutgoingHandler {
     async fn send_challenge(&self, challenge_msg: String) -> Result<String, Error>;
 }
 
-impl Handler for OutgoingMessage {
+impl OutgoingHandler for OutgoingMessage {
     // Change `handler` to `Handler`
     async fn send_challenge(&self, challenge_msg: String) -> Result<String, Error> {
         let relay_message: RelayMessage = RelayMessage::auth(challenge_msg);
