@@ -41,7 +41,6 @@ pub trait OutgoingHandler {
 }
 
 impl OutgoingHandler for OutgoingMessage {
-    // Change `handler` to `Handler`
     async fn send_challenge(&self, challenge_msg: String) -> Result<String, Error> {
         let relay_message: RelayMessage = RelayMessage::auth(challenge_msg);
         let challenge_str: String = serde_json::to_string(&relay_message)?;

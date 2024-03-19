@@ -95,7 +95,6 @@ impl MessageHandler for IncomingMessage {
             ClientMessage::Event(event) => {
                 let response;
                 let eid = event.id();
-                let ids = event.id().to_string();
 
                 match self.check_signature(*event.clone()).await {
                     Ok(_) => {
@@ -105,7 +104,7 @@ impl MessageHandler for IncomingMessage {
                     Err(e) => {
                         let err = e.to_string();
                         // If the check_signature method returned an error, handle it here
-                        response = vec!["OK", &ids, "false", &err];
+                        response = RelayMessage::ok(eid, false, &err);
                         let response_str = serde_json::to_string(&response)?;
                         return Ok(HandlerResult::String(response_str));
                     }
@@ -115,12 +114,12 @@ impl MessageHandler for IncomingMessage {
                 if !event_existed {
                     let success = self.db.save_event(&event).await?;
                     if success {
-                        response = vec!["OK", &ids, "true", &content];
+                        response = RelayMessage::ok(eid, true, &content);
                     } else {
-                        response = vec!["OK", &ids, "false", &content];
+                        response = RelayMessage::ok(eid, false, &content);
                     }
                 } else {
-                    response = vec!["OK", &ids, "true", "duplicate"];
+                    response = RelayMessage::ok(eid, true, "deduplicated event");
                 }
 
                 let response_str = vec![serde_json::to_string(&response)?];
@@ -139,15 +138,18 @@ impl MessageHandler for IncomingMessage {
                     }
                     Err(e) => {
                         let err = e.to_string();
-                        let response = vec!["OK", "false", &err];
+                        let status = false;
+                        let response = RelayMessage::ok(event_id, status, &err);
                         let response_str = serde_json::to_string(&response)?;
                         return Ok(HandlerResult::String(response_str));
                     }
                 }
             }
-            ClientMessage::Close(close) => {
-                let ret = vec!["TODO".to_string()];
-                Ok(HandlerResult::Strings(ret))
+            ClientMessage::Close(sid) => {
+                let reason = String::from("reason");
+                let response = RelayMessage::closed(sid, &reason);
+                let ret = serde_json::to_string(&response)?;
+                Ok(HandlerResult::String(ret))
             }
             ClientMessage::NegClose { subscription_id } => {
                 let ret = vec!["TODO".to_string()];
