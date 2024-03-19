@@ -1,7 +1,9 @@
+use std::alloc::LayoutErr;
 use std::iter::Successors;
 
 use async_trait::async_trait;
 use futures_util::future::ok;
+use futures_util::sink::Close;
 use futures_util::stream::Count;
 use nostr::event::raw;
 use nostr::{
@@ -121,7 +123,6 @@ impl MessageHandler for IncomingMessage {
                 } else {
                     response = RelayMessage::ok(eid, true, "deduplicated event");
                 }
-
                 let response_str = vec![serde_json::to_string(&response)?];
                 Ok(HandlerResult::Strings(response_str))
             }
@@ -164,17 +165,23 @@ impl MessageHandler for IncomingMessage {
                 let response_str = serde_json::to_string(&response)?;
                 Ok(HandlerResult::String(response_str))
             }
-            ClientMessage::Req { filters, .. } => {
+            ClientMessage::Req {
+                subscription_id,
+                filters,
+            } => {
                 let order = Order::Desc;
 
                 let queried_events = self.db.query(filters, order).await?;
                 let mut ret = Vec::with_capacity(queried_events.len());
                 for e in queried_events.into_iter() {
-                    let relay_messages =
-                        RelayMessage::event(SubscriptionId::new("random_string"), e);
+                    let relay_messages = RelayMessage::event(subscription_id.clone(), e);
                     let serialized = serde_json::to_string(&relay_messages)?;
                     ret.push(serialized);
                 }
+                let close_reason = "reason";
+                let close_str = RelayMessage::closed(subscription_id, close_reason);
+                let close_serialized = serde_json::to_string(&close_str)?;
+                ret.push(close_serialized);
                 Ok(HandlerResult::Strings(ret))
             }
             ClientMessage::NegOpen {

@@ -197,8 +197,16 @@ impl Conn for WebServer {
             match message {
                 Ok(msg) => match msg {
                     Message::Text(txt) => {
-                        let m = self.handler.to_client_message(&txt).await.unwrap();
-                        let results = self.handler.handlers(m).await.unwrap();
+                        let m = self
+                            .handler
+                            .to_client_message(&txt)
+                            .await
+                            .expect("Failed to parse message");
+                        let results = self
+                            .handler
+                            .handlers(m)
+                            .await
+                            .expect("Failed to handle message");
                         self.handle_result(results, &mut write).await;
                     }
 
