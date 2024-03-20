@@ -210,12 +210,13 @@ impl Conn for WebServer {
                         self.handle_result(results, &mut write).await;
                     }
 
-                    //TODO:
+                    //TODO: handle binary messages
                     Message::Binary(bin) => {
                         println!("Received binary: {:?}", bin);
                     }
                     Message::Close(_) => {
-                        println!("Received close message");
+                        log::info!("Received close message");
+                        self.close_connection(&mut write).await;
                         break;
                     }
                     _ => {}

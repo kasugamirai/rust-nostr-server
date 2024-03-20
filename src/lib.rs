@@ -7,6 +7,7 @@ pub use db::Server;
 pub use msgapi::HandlerResult;
 pub use msgapi::IncomingMessage;
 pub use msgapi::MessageHandler;
+pub use msgapi::OutgoingHandler;
 pub use msgapi::OutgoingMessage;
 pub enum Error {
     MsgApi(msgapi::Error),
