@@ -15,6 +15,8 @@ use nostr_database::{DatabaseError, NostrDatabase, Order};
 use nostr_rocksdb::RocksDatabase;
 use tokio_tungstenite::tungstenite::http::response;
 
+const deduplicated_event: &str = "deduplicated event";
+
 #[derive(Debug, Clone)]
 pub struct IncomingMessage {
     db: RocksDatabase,
@@ -161,14 +163,14 @@ impl MessageHandler for IncomingMessage {
         Ok(ret)
     }
     async fn to_client_message(&self, txt: &str) -> Result<ClientMessage, Error> {
-        let ret = <ClientMessage as nostr::JsonUtil>::from_json(txt)?;
+        let ret: ClientMessage = <ClientMessage as nostr::JsonUtil>::from_json(txt)?;
         Ok(ret)
     }
     async fn handlers(&self, client_message: ClientMessage) -> Result<HandlerResult, Error> {
         match client_message {
             ClientMessage::Event(event) => {
-                let response;
-                let eid = event.id();
+                let response: RelayMessage;
+                let eid: nostr::EventId = event.id();
 
                 match self.check_signature(*event.clone()).await {
                     Ok(_) => {
@@ -184,20 +186,20 @@ impl MessageHandler for IncomingMessage {
                         return Ok(HandlerResult::DoEvent(ret));
                     }
                 }
-                let content = event.content().to_string();
-                let event_existed = self.db.has_event_already_been_saved(&eid).await?;
+                let content: String = event.content().to_string();
+                let event_existed: bool = self.db.has_event_already_been_saved(&eid).await?;
                 if !event_existed {
-                    let success = self.db.save_event(&event).await?;
+                    let success: bool = self.db.save_event(&event).await?;
                     if success {
                         response = RelayMessage::ok(eid, true, &content);
                     } else {
                         response = RelayMessage::ok(eid, false, &content);
                     }
                 } else {
-                    response = RelayMessage::ok(eid, true, "deduplicated event");
+                    response = RelayMessage::ok(eid, true, deduplicated_event);
                 }
-                let response_str = serde_json::to_string(&response)?;
-                let ret = DoEvent::new(response_str).await;
+                let response_str: String = serde_json::to_string(&response)?;
+                let ret: DoEvent = DoEvent::new(response_str).await;
                 Ok(HandlerResult::DoEvent(ret))
             }
             ClientMessage::Auth(auth) => {
@@ -209,57 +211,58 @@ impl MessageHandler for IncomingMessage {
                         let message: &str = "auth signature is valid";
                         let response: RelayMessage = RelayMessage::ok(event_id, status, message);
                         let response_str: String = serde_json::to_string(&response)?;
-                        let ret = DoAuth::new(response_str).await;
+                        let ret: DoAuth = DoAuth::new(response_str).await;
                         return Ok(HandlerResult::DoAuth(ret));
                     }
                     Err(e) => {
-                        let err = e.to_string();
-                        let status = false;
-                        let response = RelayMessage::ok(event_id, status, &err);
-                        let response_str = serde_json::to_string(&response)?;
-                        let ret = DoAuth::new(response_str).await;
+                        let err: String = e.to_string();
+                        let status: bool = false;
+                        let response: RelayMessage = RelayMessage::ok(event_id, status, &err);
+                        let response_str: String = serde_json::to_string(&response)?;
+                        let ret: DoAuth = DoAuth::new(response_str).await;
                         return Ok(HandlerResult::DoAuth(ret));
                     }
                 }
             }
             ClientMessage::Close(sid) => {
-                let reason = String::from("reason");
-                let response = RelayMessage::closed(sid, &reason);
-                let ret = DoClose::new(&serde_json::to_string(&response)?).await;
+                let reason: String = String::from("reason");
+                let response: RelayMessage = RelayMessage::closed(sid, &reason);
+                let ret: DoClose = DoClose::new(&serde_json::to_string(&response)?).await;
                 Ok(HandlerResult::DoClose(ret))
             }
             ClientMessage::NegClose { subscription_id } => {
-                let ret = vec!["TODO".to_string()];
+                let ret: Vec<String> = vec!["TODO".to_string()];
                 Ok(HandlerResult::Strings(ret))
             }
             ClientMessage::Count {
                 subscription_id,
                 filters,
             } => {
-                let count = self.db.count(filters).await?;
-                let response = RelayMessage::count(subscription_id, count);
-                let response_str = serde_json::to_string(&response)?;
-                let ret = DoCount::new(response_str).await;
+                let count: usize = self.db.count(filters).await?;
+                let response: RelayMessage = RelayMessage::count(subscription_id, count);
+                let response_str: String = serde_json::to_string(&response)?;
+                let ret: DoCount = DoCount::new(response_str).await;
                 Ok(HandlerResult::DoCount(ret))
             }
             ClientMessage::Req {
                 subscription_id,
                 filters,
             } => {
-                let order = Order::Desc;
+                let order: Order = Order::Desc;
 
-                let queried_events = self.db.query(filters, order).await?;
-                let mut ret = Vec::with_capacity(queried_events.len());
+                let queried_events: Vec<Event> = self.db.query(filters, order).await?;
+                let mut ret: Vec<String> = Vec::with_capacity(queried_events.len());
                 for e in queried_events.into_iter() {
-                    let relay_messages = RelayMessage::event(subscription_id.clone(), e);
-                    let serialized = serde_json::to_string(&relay_messages)?;
+                    let relay_messages: RelayMessage =
+                        RelayMessage::event(subscription_id.clone(), e);
+                    let serialized: String = serde_json::to_string(&relay_messages)?;
                     ret.push(serialized);
                 }
-                let close_reason = "reason";
-                let close_str = RelayMessage::closed(subscription_id, close_reason);
-                let close_serialized = serde_json::to_string(&close_str)?;
+                let close_reason: &str = "reason";
+                let close_str: RelayMessage = RelayMessage::closed(subscription_id, close_reason);
+                let close_serialized: String = serde_json::to_string(&close_str)?;
                 ret.push(close_serialized);
-                let ret = DoReq::new(ret).await;
+                let ret: DoReq = DoReq::new(ret).await;
                 Ok(HandlerResult::DoReq(ret))
             }
             ClientMessage::NegOpen {

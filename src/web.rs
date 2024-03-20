@@ -31,6 +31,9 @@ use tokio_tungstenite::accept_async;
 use tokio_tungstenite::tungstenite::http::response;
 use tokio_tungstenite::tungstenite::protocol::Message;
 
+const CONNECTED: &str = "New WebSocket connection";
+const CLOSE: &str = "Received close message";
+
 #[derive(Debug)]
 pub enum Error {
     Event(nostr::event::Error),
@@ -88,10 +91,10 @@ impl fmt::Display for WebServer {
 
 impl WebServer {
     pub async fn new(port: u16) -> Self {
-        let addr = format!("127.0.0.1:{}", port)
+        let addr: SocketAddr = format!("127.0.0.1:{}", port)
             .parse()
             .expect("Invalid address");
-        let handler = IncomingMessage::new()
+        let handler: IncomingMessage = IncomingMessage::new()
             .await
             .expect("Failed to create message handler");
         debug!("WebServer created at {}", addr);
@@ -100,14 +103,14 @@ impl WebServer {
     }
 
     pub async fn start_listening(&self) -> Result<TcpListener, Error> {
-        let listener = TcpListener::bind(&self.addr).await?;
+        let listener: TcpListener = TcpListener::bind(&self.addr).await?;
         println!("WebSocket server running at {}", self.addr);
         Ok(listener)
     }
 
     pub async fn accept_connection(&self, listener: TcpListener) {
         while let Ok((stream, _)) = listener.accept().await {
-            let this = self.clone();
+            let this: WebServer = self.clone();
             tokio::spawn(async move {
                 this.handle_connection(stream).await;
             });
@@ -191,23 +194,27 @@ impl Conn for WebServer {
                 }
             };
 
-        println!("New WebSocket connection");
-
+        log::debug!("{}", CONNECTED);
         let (mut write, mut read) = ws_stream.split();
         while let Some(message) = read.next().await {
             match message {
                 Ok(msg) => match msg {
                     Message::Text(txt) => {
-                        let m = self
+                        let m: ClientMessage = self
                             .handler
                             .to_client_message(&txt)
                             .await
-                            .expect("Failed to parse message");
-                        let results = self
-                            .handler
-                            .handlers(m)
-                            .await
-                            .expect("Failed to handle message");
+                            .unwrap_or_else(|err| {
+                                log::error!("Failed to parse message: {}", err);
+                                panic!("Failed to parse message");
+                            });
+
+                        let results: HandlerResult =
+                            self.handler.handlers(m).await.unwrap_or_else(|err| {
+                                log::error!("Failed to handle message: {}", err);
+                                panic!("Failed to handle message");
+                            });
+
                         self.handle_result(results, &mut write).await;
                     }
 
@@ -216,7 +223,7 @@ impl Conn for WebServer {
                         println!("Received binary: {:?}", bin);
                     }
                     Message::Close(_) => {
-                        log::info!("Received close message");
+                        log::debug!("{}", CLOSE);
                         self.close_connection(&mut write).await;
                         break;
                     }
@@ -237,42 +244,42 @@ impl Conn for WebServer {
     ) {
         match result {
             HandlerResult::String(msg) => {
-                let message = Message::Text(msg);
+                let message: Message = Message::Text(msg);
                 self.echo_message(&mut write, &message).await;
                 self.close_connection(&mut write).await;
             }
             HandlerResult::Strings(msgs) => {
                 for msg in msgs {
-                    let message = Message::Text(msg);
+                    let message: Message = Message::Text(msg);
                     self.echo_message(&mut write, &message).await;
                     self.close_connection(&mut write).await;
                 }
             }
             HandlerResult::DoClose(do_close) => {
-                let message = Message::Text(do_close.get_reason().await);
+                let message: Message = Message::Text(do_close.get_reason().await);
                 self.echo_message(&mut write, &message).await;
                 self.close_connection(&mut write).await;
             }
             HandlerResult::DoAuth(do_auth) => {
-                let message = Message::Text(do_auth.get_auth().await);
+                let message: Message = Message::Text(do_auth.get_auth().await);
                 self.echo_message(&mut write, &message).await;
                 self.close_connection(&mut write).await;
             }
             HandlerResult::DoEvent(do_event) => {
-                let message = Message::Text(do_event.get_event().await);
+                let message: Message = Message::Text(do_event.get_event().await);
                 self.echo_message(&mut write, &message).await;
                 self.close_connection(&mut write).await;
             }
             HandlerResult::DoReq(do_req) => {
-                let msgs = do_req.get_req().await;
+                let msgs: Vec<String> = do_req.get_req().await;
                 for msg in msgs {
-                    let message = Message::Text(msg);
+                    let message: Message = Message::Text(msg);
                     self.echo_message(&mut write, &message).await;
                     self.close_connection(&mut write).await;
                 }
             }
             HandlerResult::DoCount(do_count) => {
-                let message = Message::Text(do_count.get_count().await);
+                let message: Message = Message::Text(do_count.get_count().await);
                 self.echo_message(&mut write, &message).await;
                 self.close_connection(&mut write).await;
             }
