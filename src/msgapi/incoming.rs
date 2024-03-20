@@ -70,9 +70,81 @@ impl IncomingMessage {
     }
 }
 
+pub struct DoClose {
+    reason: String,
+}
+
+impl DoClose {
+    pub async fn new(reason: &str) -> Self {
+        DoClose {
+            reason: reason.to_string(),
+        }
+    }
+    pub async fn get_reason(&self) -> String {
+        self.reason.clone()
+    }
+}
+
+pub struct DoEvent {
+    event: String,
+}
+
+impl DoEvent {
+    pub async fn new(event: String) -> Self {
+        DoEvent { event }
+    }
+    pub async fn get_event(&self) -> String {
+        self.event.clone()
+    }
+}
+
+pub struct DoReq {
+    req: Vec<String>,
+}
+
+impl DoReq {
+    pub async fn new(req: Vec<String>) -> Self {
+        DoReq { req }
+    }
+    pub async fn get_req(&self) -> Vec<String> {
+        self.req.clone()
+    }
+}
+
+pub struct DoAuth {
+    auth: String,
+}
+
+impl DoAuth {
+    pub async fn new(auth: String) -> Self {
+        DoAuth { auth }
+    }
+    pub async fn get_auth(&self) -> String {
+        self.auth.clone()
+    }
+}
+
+pub struct DoCount {
+    count: String,
+}
+
+impl DoCount {
+    pub async fn new(count: String) -> Self {
+        DoCount { count }
+    }
+    pub async fn get_count(&self) -> String {
+        self.count.clone()
+    }
+}
+
 pub enum HandlerResult {
-    Strings(Vec<String>),
+    DoAuth(DoAuth),
+    DoEvent(DoEvent),
+    DoReq(DoReq),
+    DoClose(DoClose),
+    DoCount(DoCount),
     String(String),
+    Strings(Vec<String>),
 }
 
 #[async_trait]
@@ -108,7 +180,8 @@ impl MessageHandler for IncomingMessage {
                         // If the check_signature method returned an error, handle it here
                         response = RelayMessage::ok(eid, false, &err);
                         let response_str = serde_json::to_string(&response)?;
-                        return Ok(HandlerResult::String(response_str));
+                        let ret = DoEvent::new(response_str).await;
+                        return Ok(HandlerResult::DoEvent(ret));
                     }
                 }
                 let content = event.content().to_string();
@@ -123,8 +196,9 @@ impl MessageHandler for IncomingMessage {
                 } else {
                     response = RelayMessage::ok(eid, true, "deduplicated event");
                 }
-                let response_str = vec![serde_json::to_string(&response)?];
-                Ok(HandlerResult::Strings(response_str))
+                let response_str = serde_json::to_string(&response)?;
+                let ret = DoEvent::new(response_str).await;
+                Ok(HandlerResult::DoEvent(ret))
             }
             ClientMessage::Auth(auth) => {
                 let event_id = auth.id();
@@ -135,22 +209,24 @@ impl MessageHandler for IncomingMessage {
                         let message: &str = "auth signature is valid";
                         let response: RelayMessage = RelayMessage::ok(event_id, status, message);
                         let response_str: String = serde_json::to_string(&response)?;
-                        return Ok(HandlerResult::String(response_str));
+                        let ret = DoAuth::new(response_str).await;
+                        return Ok(HandlerResult::DoAuth(ret));
                     }
                     Err(e) => {
                         let err = e.to_string();
                         let status = false;
                         let response = RelayMessage::ok(event_id, status, &err);
                         let response_str = serde_json::to_string(&response)?;
-                        return Ok(HandlerResult::String(response_str));
+                        let ret = DoAuth::new(response_str).await;
+                        return Ok(HandlerResult::DoAuth(ret));
                     }
                 }
             }
             ClientMessage::Close(sid) => {
                 let reason = String::from("reason");
                 let response = RelayMessage::closed(sid, &reason);
-                let ret = serde_json::to_string(&response)?;
-                Ok(HandlerResult::String(ret))
+                let ret = DoClose::new(&serde_json::to_string(&response)?).await;
+                Ok(HandlerResult::DoClose(ret))
             }
             ClientMessage::NegClose { subscription_id } => {
                 let ret = vec!["TODO".to_string()];
@@ -163,7 +239,8 @@ impl MessageHandler for IncomingMessage {
                 let count = self.db.count(filters).await?;
                 let response = RelayMessage::count(subscription_id, count);
                 let response_str = serde_json::to_string(&response)?;
-                Ok(HandlerResult::String(response_str))
+                let ret = DoCount::new(response_str).await;
+                Ok(HandlerResult::DoCount(ret))
             }
             ClientMessage::Req {
                 subscription_id,
@@ -182,7 +259,8 @@ impl MessageHandler for IncomingMessage {
                 let close_str = RelayMessage::closed(subscription_id, close_reason);
                 let close_serialized = serde_json::to_string(&close_str)?;
                 ret.push(close_serialized);
-                Ok(HandlerResult::Strings(ret))
+                let ret = DoReq::new(ret).await;
+                Ok(HandlerResult::DoReq(ret))
             }
             ClientMessage::NegOpen {
                 subscription_id,

@@ -20,6 +20,7 @@ use serde_json::de;
 use serde_json::json;
 use std::fmt;
 use std::net::SocketAddr;
+use tokio_tungstenite::tungstenite::handshake;
 use tokio_tungstenite::WebSocketStream;
 //use std::os::macos::raw;
 use crate::HandlerResult;
@@ -246,6 +247,34 @@ impl Conn for WebServer {
                     self.echo_message(&mut write, &message).await;
                     self.close_connection(&mut write).await;
                 }
+            }
+            HandlerResult::DoClose(do_close) => {
+                let message = Message::Text(do_close.get_reason().await);
+                self.echo_message(&mut write, &message).await;
+                self.close_connection(&mut write).await;
+            }
+            HandlerResult::DoAuth(do_auth) => {
+                let message = Message::Text(do_auth.get_auth().await);
+                self.echo_message(&mut write, &message).await;
+                self.close_connection(&mut write).await;
+            }
+            HandlerResult::DoEvent(do_event) => {
+                let message = Message::Text(do_event.get_event().await);
+                self.echo_message(&mut write, &message).await;
+                self.close_connection(&mut write).await;
+            }
+            HandlerResult::DoReq(do_req) => {
+                let msgs = do_req.get_req().await;
+                for msg in msgs {
+                    let message = Message::Text(msg);
+                    self.echo_message(&mut write, &message).await;
+                    self.close_connection(&mut write).await;
+                }
+            }
+            HandlerResult::DoCount(do_count) => {
+                let message = Message::Text(do_count.get_count().await);
+                self.echo_message(&mut write, &message).await;
+                self.close_connection(&mut write).await;
             }
         }
     }
