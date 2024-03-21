@@ -210,13 +210,13 @@ impl Conn for WebServer {
                 }
             };
         let limiter = &self.limiter;
-        if limiter.acquire().await.is_err() {
-            log::error!("Rate limit exceeded");
-            return;
-        }
         log::debug!("{}", CONNECTED);
         let (mut write, mut read) = ws_stream.split();
         while let Some(message) = read.next().await {
+            if limiter.acquire().await.is_err() {
+                log::error!("Rate limit exceeded");
+                return;
+            }
             match message {
                 Ok(msg) => match msg {
                     Message::Text(txt) => {
