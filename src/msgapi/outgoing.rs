@@ -1,6 +1,7 @@
 use async_trait::async_trait;
-use nostr::event;
+use nostr::message::subscription;
 use nostr::RelayMessage;
+use nostr::{event, SubscriptionId};
 
 #[derive(Debug)]
 pub enum Error {
@@ -64,15 +65,34 @@ impl notice_msg {
     }
 }
 
+#[derive(Debug, Clone)]
+pub struct EoseMsg {
+    pub eose_msg: String,
+}
+
+impl EoseMsg {
+    pub async fn new(eose_msg: String) -> Self {
+        EoseMsg { eose_msg }
+    }
+    pub async fn get_subscription_id(&self) -> String {
+        self.eose_msg.clone()
+    }
+}
+
 #[derive(Debug)]
 pub enum OutgoingMessageTypes {
     Challenge(challenge_msg),
     Notice(notice_msg),
+    Eose(EoseMsg),
 }
 #[async_trait]
 pub trait OutgoingHandler {
     async fn send_challenge(&self, challenge_msg: String) -> Result<OutgoingMessageTypes, Error>;
     async fn send_notice(&self, notice_msg: String) -> Result<OutgoingMessageTypes, Error>;
+    async fn send_eose(
+        &self,
+        subscription_id: SubscriptionId,
+    ) -> Result<OutgoingMessageTypes, Error>;
 }
 
 #[async_trait]
@@ -88,5 +108,14 @@ impl OutgoingHandler for OutgoingMessage {
         let notice_str: String = serde_json::to_string(&relay_message)?;
         let ret = notice_msg::new(notice_str).await;
         Ok(OutgoingMessageTypes::Notice(ret))
+    }
+    async fn send_eose(
+        &self,
+        subscription_id: SubscriptionId,
+    ) -> Result<OutgoingMessageTypes, Error> {
+        let end_of_send_event: RelayMessage = RelayMessage::eose(subscription_id);
+        let end_of_send_event_str: String = serde_json::to_string(&end_of_send_event)?;
+        let ret = EoseMsg::new(end_of_send_event_str).await;
+        Ok(OutgoingMessageTypes::Eose(ret))
     }
 }

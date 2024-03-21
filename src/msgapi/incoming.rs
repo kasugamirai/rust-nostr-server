@@ -294,6 +294,10 @@ impl MessageHandler for IncomingMessage {
                 Ok(HandlerResult::DoClose(ret))
             }
             ClientMessage::NegClose { subscription_id } => {
+                //TODO
+                let CloseMessage = "close message";
+                let response: RelayMessage = RelayMessage::closed(subscription_id, CloseMessage);
+                let ret: DoNegClose;
                 let ret: Vec<String> = vec!["TODO".to_string()];
                 Ok(HandlerResult::Strings(ret))
             }
