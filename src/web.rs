@@ -91,12 +91,14 @@ impl fmt::Display for WebServer {
 
 impl WebServer {
     pub async fn new(port: u16) -> Self {
-        let addr: SocketAddr = format!("127.0.0.1:{}", port)
-            .parse()
-            .expect("Invalid address");
-        let handler: IncomingMessage = IncomingMessage::new()
-            .await
-            .expect("Failed to create message handler");
+        let addr: SocketAddr = format!("127.0.0.1:{}", port).parse().unwrap_or_else(|err| {
+            eprintln!("Failed to parse address: {}", err);
+            std::process::exit(1);
+        });
+        let handler: IncomingMessage = IncomingMessage::new().await.unwrap_or_else(|err| {
+            eprintln!("Failed to create message handler: {}", err);
+            std::process::exit(1);
+        });
         debug!("WebServer created at {}", addr);
         //debug!("Message handler created: {:?}", handler);
         Self { addr, handler }
