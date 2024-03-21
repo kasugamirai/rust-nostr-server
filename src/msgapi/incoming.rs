@@ -15,7 +15,8 @@ use nostr_database::{DatabaseError, NostrDatabase, Order};
 use nostr_rocksdb::RocksDatabase;
 use tokio_tungstenite::tungstenite::http::response;
 
-const deduplicated_event: &str = "deduplicated event";
+const DEDUPLICATED_EVENT: &str = "deduplicated event";
+const EVENT_SIGNATURE_VALID: &str = "event signature is valid";
 
 #[derive(Debug, Clone)]
 pub struct IncomingMessage {
@@ -72,6 +73,7 @@ impl IncomingMessage {
     }
 }
 
+#[derive(Debug)]
 pub struct DoClose {
     reason: String,
 }
@@ -87,6 +89,7 @@ impl DoClose {
     }
 }
 
+#[derive(Debug)]
 pub struct DoEvent {
     event: String,
 }
@@ -100,6 +103,7 @@ impl DoEvent {
     }
 }
 
+#[derive(Debug)]
 pub struct DoReq {
     req: Vec<String>,
 }
@@ -113,6 +117,7 @@ impl DoReq {
     }
 }
 
+#[derive(Debug)]
 pub struct DoAuth {
     auth: String,
 }
@@ -126,6 +131,7 @@ impl DoAuth {
     }
 }
 
+#[derive(Debug)]
 pub struct DoCount {
     count: String,
 }
@@ -139,6 +145,49 @@ impl DoCount {
     }
 }
 
+#[derive(Debug)]
+pub struct DoNegClose {
+    neg_close: String,
+}
+
+impl DoNegClose {
+    pub async fn new(neg_close: String) -> Self {
+        DoNegClose { neg_close }
+    }
+    pub async fn get_neg_close(&self) -> String {
+        self.neg_close.clone()
+    }
+}
+
+#[derive(Debug)]
+pub struct DoNegMsg {
+    neg_msg: String,
+}
+
+impl DoNegMsg {
+    pub async fn new(neg_msg: String) -> Self {
+        DoNegMsg { neg_msg }
+    }
+    pub async fn get_neg_msg(&self) -> String {
+        self.neg_msg.clone()
+    }
+}
+
+#[derive(Debug)]
+pub struct DoNegOpen {
+    neg_open: String,
+}
+
+impl DoNegOpen {
+    pub async fn new(neg_open: String) -> Self {
+        DoNegOpen { neg_open }
+    }
+    pub async fn get_neg_open(&self) -> String {
+        self.neg_open.clone()
+    }
+}
+
+#[derive(Debug)]
 pub enum HandlerResult {
     DoAuth(DoAuth),
     DoEvent(DoEvent),
@@ -147,6 +196,20 @@ pub enum HandlerResult {
     DoCount(DoCount),
     String(String),
     Strings(Vec<String>),
+}
+
+impl std::fmt::Display for HandlerResult {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        match self {
+            Self::DoAuth(_) => write!(f, "DoAuth"),
+            Self::DoEvent(_) => write!(f, "DoEvent"),
+            Self::DoReq(_) => write!(f, "DoReq"),
+            Self::DoClose(_) => write!(f, "DoClose"),
+            Self::DoCount(_) => write!(f, "DoCount"),
+            Self::String(_) => write!(f, "String"),
+            Self::Strings(_) => write!(f, "Strings"),
+        }
+    }
 }
 
 #[async_trait]
@@ -196,7 +259,7 @@ impl MessageHandler for IncomingMessage {
                         response = RelayMessage::ok(eid, false, &content);
                     }
                 } else {
-                    response = RelayMessage::ok(eid, true, deduplicated_event);
+                    response = RelayMessage::ok(eid, true, DEDUPLICATED_EVENT);
                 }
                 let response_str: String = serde_json::to_string(&response)?;
                 let ret: DoEvent = DoEvent::new(response_str).await;
@@ -225,7 +288,7 @@ impl MessageHandler for IncomingMessage {
                 }
             }
             ClientMessage::Close(sid) => {
-                let reason: String = String::from("reason");
+                let reason: String = String::from("received close message from client");
                 let response: RelayMessage = RelayMessage::closed(sid, &reason);
                 let ret: DoClose = DoClose::new(&serde_json::to_string(&response)?).await;
                 Ok(HandlerResult::DoClose(ret))

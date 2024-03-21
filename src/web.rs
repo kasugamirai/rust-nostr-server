@@ -246,13 +246,13 @@ impl Conn for WebServer {
             HandlerResult::String(msg) => {
                 let message: Message = Message::Text(msg);
                 self.echo_message(&mut write, &message).await;
-                self.close_connection(&mut write).await;
+                //self.close_connection(&mut write).await;
             }
             HandlerResult::Strings(msgs) => {
                 for msg in msgs {
                     let message: Message = Message::Text(msg);
                     self.echo_message(&mut write, &message).await;
-                    self.close_connection(&mut write).await;
+                    //self.close_connection(&mut write).await;
                 }
             }
             HandlerResult::DoClose(do_close) => {
@@ -263,25 +263,25 @@ impl Conn for WebServer {
             HandlerResult::DoAuth(do_auth) => {
                 let message: Message = Message::Text(do_auth.get_auth().await);
                 self.echo_message(&mut write, &message).await;
-                self.close_connection(&mut write).await;
+                //self.close_connection(&mut write).await;
             }
             HandlerResult::DoEvent(do_event) => {
                 let message: Message = Message::Text(do_event.get_event().await);
                 self.echo_message(&mut write, &message).await;
-                self.close_connection(&mut write).await;
+                //self.close_connection(&mut write).await;
             }
             HandlerResult::DoReq(do_req) => {
                 let msgs: Vec<String> = do_req.get_req().await;
                 for msg in msgs {
                     let message: Message = Message::Text(msg);
                     self.echo_message(&mut write, &message).await;
-                    self.close_connection(&mut write).await;
+                    //self.close_connection(&mut write).await;
                 }
             }
             HandlerResult::DoCount(do_count) => {
                 let message: Message = Message::Text(do_count.get_count().await);
                 self.echo_message(&mut write, &message).await;
-                self.close_connection(&mut write).await;
+                //self.close_connection(&mut write).await;
             }
         }
     }

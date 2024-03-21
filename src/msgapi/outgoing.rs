@@ -40,6 +40,7 @@ impl OutgoingMessage {
 #[async_trait]
 pub trait OutgoingHandler {
     async fn send_challenge(&self, challenge_msg: String) -> Result<String, Error>;
+    async fn send_notice(&self, notice_msg: String) -> Result<String, Error>;
 }
 
 #[async_trait]
@@ -48,5 +49,10 @@ impl OutgoingHandler for OutgoingMessage {
         let relay_message: RelayMessage = RelayMessage::auth(challenge_msg);
         let challenge_str: String = serde_json::to_string(&relay_message)?;
         Ok(challenge_str)
+    }
+    async fn send_notice(&self, notice_msg: String) -> Result<String, Error> {
+        let relay_message: RelayMessage = RelayMessage::notice(notice_msg);
+        let notice_str: String = serde_json::to_string(&relay_message)?;
+        Ok(notice_str)
     }
 }
