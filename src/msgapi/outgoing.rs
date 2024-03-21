@@ -85,6 +85,7 @@ pub enum OutgoingMessageTypes {
     Notice(notice_msg),
     Eose(EoseMsg),
 }
+
 #[async_trait]
 pub trait OutgoingHandler {
     async fn send_challenge(&self, challenge_msg: String) -> Result<OutgoingMessageTypes, Error>;

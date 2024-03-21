@@ -1,7 +1,10 @@
+use crate::limiter;
 use crate::IncomingMessage;
 use crate::MessageHandler;
+use crate::RateLimiter;
 //use crate::{Handlers, Server};
 use async_trait::async_trait;
+use futures_util::select_biased;
 use futures_util::stream::SplitSink;
 use futures_util::stream::StreamExt;
 use futures_util::SinkExt;
@@ -18,12 +21,17 @@ use nostr_rocksdb::nostr::{event, Event};
 use nostr_rocksdb::RocksDatabase;
 use serde_json::de;
 use serde_json::json;
+use std::collections::HashMap;
 use std::fmt;
 use std::net::SocketAddr;
+use std::time::Duration;
+use tokio::sync::Mutex;
+use tokio::time::Instant;
 use tokio_tungstenite::tungstenite::handshake;
 use tokio_tungstenite::WebSocketStream;
 //use std::os::macos::raw;
 use crate::HandlerResult;
+use crate::RateLimitError;
 use std::sync::Arc;
 use std::thread::sleep;
 use tokio::net::{TcpListener, TcpStream};
@@ -81,6 +89,7 @@ impl From<DatabaseError> for Error {
 pub struct WebServer {
     addr: SocketAddr,
     handler: IncomingMessage,
+    limiter: RateLimiter,
 }
 
 impl fmt::Display for WebServer {
@@ -100,8 +109,13 @@ impl WebServer {
             std::process::exit(1);
         });
         debug!("WebServer created at {}", addr);
+        let limiter: RateLimiter = RateLimiter::new(10, Duration::from_secs(60));
         //debug!("Message handler created: {:?}", handler);
-        Self { addr, handler }
+        WebServer {
+            addr,
+            handler,
+            limiter,
+        }
     }
 
     pub async fn start_listening(&self) -> Result<TcpListener, Error> {
@@ -195,7 +209,11 @@ impl Conn for WebServer {
                     return;
                 }
             };
-
+        let limiter = &self.limiter;
+        if limiter.acquire().await.is_err() {
+            log::error!("Rate limit exceeded");
+            return;
+        }
         log::debug!("{}", CONNECTED);
         let (mut write, mut read) = ws_stream.split();
         while let Some(message) = read.next().await {

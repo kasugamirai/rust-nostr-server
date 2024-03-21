@@ -1,10 +1,11 @@
 //mod db;
-mod middlewear;
+mod limiter;
 mod web;
 pub use web::WebServer;
 mod msgapi;
 //pub use db::Handlers;
 //pub use db::Server;
+pub use limiter::RateLimitError;
 pub use msgapi::HandlerResult;
 pub use msgapi::IncomingMessage;
 pub use msgapi::MessageHandler;
@@ -15,3 +16,5 @@ pub enum Error {
     //   Server(db::Error),
     Web(web::Error),
 }
+
+pub use limiter::RateLimiter;
