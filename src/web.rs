@@ -39,8 +39,8 @@ use tokio_tungstenite::accept_async;
 use tokio_tungstenite::tungstenite::http::response;
 use tokio_tungstenite::tungstenite::protocol::Message;
 
-const CONNECTED: &str = "New WebSocket connection";
-const CLOSE: &str = "Received close message";
+const CONNECTED: &'static str = "New WebSocket connection";
+const CLOSE: &'static str = "Received close message";
 
 #[derive(Debug)]
 pub enum Error {

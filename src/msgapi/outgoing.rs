@@ -3,6 +3,8 @@ use nostr::message::subscription;
 use nostr::RelayMessage;
 use nostr::{event, SubscriptionId};
 
+const unauthenticated: &'static str = "we can't serve DMs to unauthenticated users";
+
 #[derive(Debug)]
 pub enum Error {
     Event(event::Error),
@@ -39,7 +41,7 @@ impl OutgoingMessage {
 }
 
 #[derive(Debug)]
-pub struct challenge_msg {
+pub struct ChallengeMsg {
     pub challenge_msg: String,
 }
 #[derive(Debug)]
@@ -47,9 +49,9 @@ pub struct notice_msg {
     pub notice_msg: String,
 }
 
-impl challenge_msg {
+impl ChallengeMsg {
     pub async fn new(challenge_msg: String) -> Self {
-        challenge_msg { challenge_msg }
+        ChallengeMsg { challenge_msg }
     }
     pub async fn get_challenge_msg(&self) -> String {
         self.challenge_msg.clone()
@@ -81,7 +83,7 @@ impl EoseMsg {
 
 #[derive(Debug)]
 pub enum OutgoingMessageTypes {
-    Challenge(challenge_msg),
+    Challenge(ChallengeMsg),
     Notice(notice_msg),
     Eose(EoseMsg),
 }
@@ -101,7 +103,7 @@ impl OutgoingHandler for OutgoingMessage {
     async fn send_challenge(&self, challenge_msg: String) -> Result<OutgoingMessageTypes, Error> {
         let relay_message: RelayMessage = RelayMessage::auth(challenge_msg);
         let challenge_str: String = serde_json::to_string(&relay_message)?;
-        let ret = challenge_msg::new(challenge_str).await;
+        let ret = ChallengeMsg::new(challenge_str).await;
         Ok(OutgoingMessageTypes::Challenge(ret))
     }
     async fn send_notice(&self, notice_msg: String) -> Result<OutgoingMessageTypes, Error> {

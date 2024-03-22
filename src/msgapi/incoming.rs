@@ -294,7 +294,7 @@ impl MessageHandler for IncomingMessage {
                 Ok(HandlerResult::DoClose(ret))
             }
             ClientMessage::NegClose { subscription_id } => {
-                //TODO
+                //TODO: Implement this
                 let CloseMessage = "close message";
                 let response: RelayMessage = RelayMessage::closed(subscription_id, CloseMessage);
                 let ret: DoNegClose;
@@ -308,6 +308,7 @@ impl MessageHandler for IncomingMessage {
                 let count: usize = self.db.count(filters).await?;
                 let response: RelayMessage = RelayMessage::count(subscription_id, count);
                 let response_str: String = serde_json::to_string(&response)?;
+
                 let ret: DoCount = DoCount::new(response_str).await;
                 Ok(HandlerResult::DoCount(ret))
             }
@@ -316,7 +317,6 @@ impl MessageHandler for IncomingMessage {
                 filters,
             } => {
                 let order: Order = Order::Desc;
-
                 let queried_events: Vec<Event> = self.db.query(filters, order).await?;
                 let mut ret: Vec<String> = Vec::with_capacity(queried_events.len());
                 for e in queried_events.into_iter() {
