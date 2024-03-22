@@ -109,7 +109,7 @@ impl WebServer {
             std::process::exit(1);
         });
         debug!("WebServer created at {}", addr);
-        let limiter: RateLimiter = RateLimiter::new(10, Duration::from_secs(60));
+        let limiter: RateLimiter = RateLimiter::new(120, Duration::from_secs(60));
         //debug!("Message handler created: {:?}", handler);
         WebServer {
             addr,
@@ -244,7 +244,7 @@ impl Conn for WebServer {
                     }
                     Message::Close(_) => {
                         log::debug!("{}", CLOSE);
-                        self.close_connection(&mut write).await;
+                        //self.close_connection(&mut write).await;
                         break;
                     }
                     _ => {}
@@ -276,30 +276,30 @@ impl Conn for WebServer {
                 }
             }
             HandlerResult::DoClose(do_close) => {
-                let message: Message = Message::Text(do_close.get_reason().await);
+                let message: Message = Message::Text(do_close.get_data().await.to_string());
                 self.echo_message(&mut write, &message).await;
-                self.close_connection(&mut write).await;
+                //self.close_connection(&mut write).await;
             }
             HandlerResult::DoAuth(do_auth) => {
-                let message: Message = Message::Text(do_auth.get_auth().await);
+                let message: Message = Message::Text(do_auth.get_data().await.to_string());
                 self.echo_message(&mut write, &message).await;
                 //self.close_connection(&mut write).await;
             }
             HandlerResult::DoEvent(do_event) => {
-                let message: Message = Message::Text(do_event.get_event().await);
+                let message: Message = Message::Text(do_event.get_data().await.to_string());
                 self.echo_message(&mut write, &message).await;
                 //self.close_connection(&mut write).await;
             }
             HandlerResult::DoReq(do_req) => {
-                let msgs: Vec<String> = do_req.get_req().await;
+                let msgs: &Vec<String> = do_req.get_data().await;
                 for msg in msgs {
-                    let message: Message = Message::Text(msg);
+                    let message: Message = Message::Text(msg.to_string());
                     self.echo_message(&mut write, &message).await;
                     //self.close_connection(&mut write).await;
                 }
             }
             HandlerResult::DoCount(do_count) => {
-                let message: Message = Message::Text(do_count.get_count().await);
+                let message: Message = Message::Text(do_count.get_data().await.to_string());
                 self.echo_message(&mut write, &message).await;
                 //self.close_connection(&mut write).await;
             }
