@@ -216,12 +216,12 @@ impl std::fmt::Display for HandlerResult {
 pub trait MessageHandler {
     async fn handlers(&self, client_message: ClientMessage) -> Result<HandlerResult, Error>;
     async fn to_client_message(&self, txt: &str) -> Result<ClientMessage, Error>;
-    async fn check_signature(&self, event: Event) -> Result<(), Error>;
+    async fn check_signature<'a>(&self, event: &'a Event) -> Result<(), Error>;
 }
 
 #[async_trait]
 impl MessageHandler for IncomingMessage {
-    async fn check_signature(&self, event: Event) -> Result<(), Error> {
+    async fn check_signature<'a>(&self, event: &'a Event) -> Result<(), Error> {
         let ret = event.verify_signature()?;
         Ok(ret)
     }
@@ -235,7 +235,7 @@ impl MessageHandler for IncomingMessage {
                 let response: RelayMessage;
                 let eid: nostr::EventId = event.id();
 
-                match self.check_signature(*event.clone()).await {
+                match self.check_signature(&event).await {
                     Ok(_) => {
                         // If the check_signature method was not successful
                         log::info!("Event signature is valid");
@@ -268,7 +268,7 @@ impl MessageHandler for IncomingMessage {
             ClientMessage::Auth(auth) => {
                 let event_id = auth.id();
 
-                match self.check_signature(*auth).await {
+                match self.check_signature(&auth).await {
                     Ok(_) => {
                         let status: bool = true;
                         let message: &str = "auth signature is valid";
@@ -294,7 +294,7 @@ impl MessageHandler for IncomingMessage {
                 Ok(HandlerResult::DoClose(ret))
             }
             ClientMessage::NegClose { subscription_id } => {
-                //TODO: Implement this
+                //TODO
                 let CloseMessage = "close message";
                 let response: RelayMessage = RelayMessage::closed(subscription_id, CloseMessage);
                 let ret: DoNegClose;
