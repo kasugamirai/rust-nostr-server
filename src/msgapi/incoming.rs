@@ -137,6 +137,8 @@ impl MessageHandler for IncomingMessage {
                 let event_kind = event.kind();
                 if event_kind == nostr::Kind::EventDeletion {
                     //TODO
+                    let filter = nostr::Filter::new().event(eid);
+                    self.db.delete(filter).await?;
                 }
 
                 match self.check_signature(&event).await {
