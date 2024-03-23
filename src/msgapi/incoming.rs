@@ -5,7 +5,7 @@ use async_trait::async_trait;
 use futures_util::future::ok;
 use futures_util::sink::Close;
 use futures_util::stream::Count;
-use nostr::event::raw;
+use nostr::event::{kind, raw};
 use nostr::{
     event, message::MessageHandleError, ClientMessage, Event, RawRelayMessage, RelayMessage,
 };
@@ -134,12 +134,9 @@ impl MessageHandler for IncomingMessage {
             ClientMessage::Event(event) => {
                 let response: RelayMessage;
                 let eid: nostr::EventId = event.id();
-                let event_kid = event.kind();
-                if event_kid.is_ephemeral() {
-                    let response = RelayMessage::ok(eid, true, "ephemeral event");
-                    let response_str = serde_json::to_string(&response)?;
-                    let ret = Do::new(response_str).await;
-                    return Ok(HandlerResult::DoEvent(ret));
+                let event_kind = event.kind();
+                if event_kind == nostr::Kind::EventDeletion {
+                    //TODO
                 }
 
                 match self.check_signature(&event).await {
@@ -158,7 +155,7 @@ impl MessageHandler for IncomingMessage {
                 }
                 let content: String = event.content().to_string();
                 let event_existed: bool = self.db.has_event_already_been_saved(&eid).await?;
-                if !event_existed {
+                if !event_existed && !event_kind.is_ephemeral() {
                     let success: bool = self.db.save_event(&event).await?;
                     if success {
                         response = RelayMessage::ok(eid, true, &content);
