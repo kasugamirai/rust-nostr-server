@@ -1,6 +1,6 @@
 # Nostr Relay (Work in Progress)
 
-This project is a Nostr relay based on the [rust-nostr](https://github.com/rust-nostr) implementation.
+This project is a Nostr relay based on the [rust-nostr](https://github.com/rust-nostr/nostr) implementation.
 
 ## Getting Started
 
