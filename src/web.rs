@@ -100,14 +100,22 @@ impl fmt::Display for WebServer {
 
 impl WebServer {
     pub async fn new(port: u16) -> Self {
-        let addr: SocketAddr = format!("127.0.0.1:{}", port).parse().unwrap_or_else(|err| {
-            eprintln!("Failed to parse address: {}", err);
-            std::process::exit(1);
-        });
-        let handler: IncomingMessage = IncomingMessage::new().await.unwrap_or_else(|err| {
-            eprintln!("Failed to create message handler: {}", err);
-            std::process::exit(1);
-        });
+        let addr = format!("127.0.0.1:{}", port).parse::<SocketAddr>();
+        let addr = match addr {
+            Ok(a) => a,
+            Err(e) => {
+                eprintln!("Failed to parse address: {}", e);
+                std::process::exit(1);
+            }
+        };
+        let handler = IncomingMessage::new().await;
+        let handler = match handler {
+            Ok(h) => h,
+            Err(err) => {
+                eprintln!("Failed to create message handler: {}", err);
+                std::process::exit(1);
+            }
+        };
         debug!("WebServer created at {}", addr);
         let limiter: RateLimiter = RateLimiter::new(120, Duration::from_secs(60));
         //debug!("Message handler created: {:?}", handler);
@@ -220,20 +228,23 @@ impl Conn for WebServer {
             match message {
                 Ok(msg) => match msg {
                     Message::Text(txt) => {
-                        let m: ClientMessage = self
-                            .handler
-                            .to_client_message(&txt)
-                            .await
-                            .unwrap_or_else(|err| {
+                        let m = self.handler.to_client_message(&txt).await;
+                        let m: ClientMessage = match m {
+                            Ok(message) => message,
+                            Err(err) => {
                                 log::error!("Failed to parse message: {}", err);
                                 panic!("Failed to parse message");
-                            });
+                            }
+                        };
 
-                        let results: HandlerResult =
-                            self.handler.handlers(m).await.unwrap_or_else(|err| {
+                        let results = self.handler.handlers(m).await;
+                        let results: HandlerResult = match results {
+                            Ok(result) => result,
+                            Err(err) => {
                                 log::error!("Failed to handle message: {}", err);
                                 panic!("Failed to handle message");
-                            });
+                            }
+                        };
 
                         self.handle_result(results, &mut write).await;
                     }
