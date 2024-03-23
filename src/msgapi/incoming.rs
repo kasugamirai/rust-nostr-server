@@ -134,6 +134,13 @@ impl MessageHandler for IncomingMessage {
             ClientMessage::Event(event) => {
                 let response: RelayMessage;
                 let eid: nostr::EventId = event.id();
+                let event_kid = event.kind();
+                if event_kid.is_ephemeral() {
+                    let response = RelayMessage::ok(eid, true, "ephemeral event");
+                    let response_str = serde_json::to_string(&response)?;
+                    let ret = Do::new(response_str).await;
+                    return Ok(HandlerResult::DoEvent(ret));
+                }
 
                 match self.check_signature(&event).await {
                     Ok(_) => {
