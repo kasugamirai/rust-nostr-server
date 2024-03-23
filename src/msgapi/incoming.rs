@@ -160,6 +160,7 @@ impl MessageHandler for IncomingMessage {
                         return Ok(HandlerResult::DoEvent(ret));
                     }
                 }
+
                 let content: String = event.content().to_string();
                 let event_existed: bool = self.db.has_event_already_been_saved(&eid).await?;
                 if !event_existed && !event_kind.is_ephemeral() {
@@ -236,10 +237,12 @@ impl MessageHandler for IncomingMessage {
                     let serialized: String = serde_json::to_string(&relay_messages)?;
                     ret.push(serialized);
                 }
-                let close_reason: &str = "reason";
-                let close_str: RelayMessage = RelayMessage::closed(subscription_id, close_reason);
-                let close_serialized: String = serde_json::to_string(&close_str)?;
-                ret.push(close_serialized);
+                //let close_reason: &str = "reason";
+                //let close_str: RelayMessage = RelayMessage::closed(subscription_id, close_reason);
+                //let close_serialized: String = serde_json::to_string(&close_str)?;
+                let end_of_send_event: RelayMessage = RelayMessage::eose(subscription_id);
+                let end_of_send_event_str: String = serde_json::to_string(&end_of_send_event)?;
+                ret.push(end_of_send_event_str);
                 let ret = Do::new(ret).await;
                 Ok(HandlerResult::DoReq(ret))
             }
