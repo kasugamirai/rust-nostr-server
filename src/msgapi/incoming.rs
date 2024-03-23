@@ -139,6 +139,11 @@ impl MessageHandler for IncomingMessage {
                     //TODO
                     let filter = nostr::Filter::new().event(eid);
                     self.db.delete(filter).await?;
+                    let content: String = event.content().to_string();
+                    response = RelayMessage::ok(eid, true, &content);
+                    let response_str: String = serde_json::to_string(&response)?;
+                    let ret = Do::new(response_str).await;
+                    return Ok(HandlerResult::DoEvent(ret));
                 }
 
                 match self.check_signature(&event).await {
