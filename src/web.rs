@@ -255,7 +255,7 @@ impl Conn for WebServer {
                     }
                     Message::Close(_) => {
                         log::debug!("{}", CLOSE);
-                        //self.close_connection(&mut write).await;
+                        self.close_connection(&mut write).await;
                         break;
                     }
                     _ => {}
@@ -289,7 +289,7 @@ impl Conn for WebServer {
             HandlerResult::DoClose(do_close) => {
                 let message: Message = Message::Text(do_close.get_data().await.to_string());
                 self.echo_message(&mut write, &message).await;
-                //self.close_connection(&mut write).await;
+                self.close_connection(&mut write).await;
             }
             HandlerResult::DoAuth(do_auth) => {
                 let message: Message = Message::Text(do_auth.get_data().await.to_string());
