@@ -3,19 +3,11 @@ use super::Inner::{self, InnerEvent};
 use super::Inner::{InnerAuth, MessageHandle};
 use super::Inner::{InnerClose, InnerCount};
 use async_trait::async_trait;
-use futures_util::future::ok;
-use futures_util::sink::Close;
-use futures_util::stream::Count;
-use nostr::event::{kind, raw};
 use nostr::{
     event, message::MessageHandleError, ClientMessage, Event, RawRelayMessage, RelayMessage,
 };
-use nostr::{JsonUtil, SubscriptionId};
-use nostr_database::nostr;
 use nostr_database::{DatabaseError, NostrDatabase, Order};
 use nostr_rocksdb::RocksDatabase;
-use std::iter::Successors;
-use tokio_tungstenite::tungstenite::http::response;
 use Inner::HandlerResult;
 
 const DEDUPLICATED_EVENT: &str = "deduplicated event";
