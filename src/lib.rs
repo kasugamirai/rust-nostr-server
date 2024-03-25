@@ -6,7 +6,6 @@ mod msgapi;
 //pub use db::Handlers;
 //pub use db::Server;
 pub use limiter::RateLimitError;
-pub use msgapi::HandlerResult;
 pub use msgapi::IncomingMessage;
 pub use msgapi::MessageHandler;
 pub use msgapi::OutgoingHandler;

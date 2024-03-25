@@ -1,6 +1,5 @@
 mod incoming;
 mod outgoing;
-pub use incoming::HandlerResult;
 pub use incoming::IncomingMessage;
 pub use incoming::MessageHandler;
 pub use outgoing::OutgoingHandler;
@@ -23,3 +22,4 @@ impl std::fmt::Display for Error {
 
 mod Inner;
 mod challange;
+pub use Inner::HandlerResult;
