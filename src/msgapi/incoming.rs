@@ -1,6 +1,4 @@
-use std::alloc::LayoutErr;
-use std::iter::Successors;
-
+use super::Inner;
 use async_trait::async_trait;
 use futures_util::future::ok;
 use futures_util::sink::Close;
@@ -13,6 +11,7 @@ use nostr::{JsonUtil, SubscriptionId};
 use nostr_database::nostr;
 use nostr_database::{DatabaseError, NostrDatabase, Order};
 use nostr_rocksdb::RocksDatabase;
+use std::iter::Successors;
 use tokio_tungstenite::tungstenite::http::response;
 
 const DEDUPLICATED_EVENT: &str = "deduplicated event";
@@ -29,6 +28,7 @@ pub enum Error {
     MessageHandle(MessageHandleError),
     Database(nostr_rocksdb::database::DatabaseError),
     ToClientMessage(serde_json::Error),
+    InnerMessage(Inner::Error),
 }
 
 impl std::fmt::Display for Error {
@@ -38,6 +38,7 @@ impl std::fmt::Display for Error {
             Self::MessageHandle(e) => write!(f, "message handle error: {}", e),
             Self::Database(e) => write!(f, "database error: {}", e),
             Self::ToClientMessage(e) => write!(f, "to client message error: {}", e),
+            Self::InnerMessage(e) => write!(f, "inner message error: {}", e),
         }
     }
 }
