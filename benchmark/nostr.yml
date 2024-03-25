@@ -1,0 +1,25 @@
+config:
+  target: "ws://127.0.0.1:3030"
+  phases:
+    - duration: 60
+      arrivalRate: 166
+      rampTo: 1000
+
+scenarios:
+  - engine: "ws"
+    flow:
+      - loop:
+          - send: |
+              [
+                "EVENT",
+                {
+                  "id": "c373b5361f419657d33837ee7c90dd18af813d09d4f3e59d5d34ad5fbab3fcb7",
+                  "pubkey": "1c54ba4e2a402151ae9828be4861b163b58bf5055b2fdf8d77b55c07ee99f69d",
+                  "created_at": 1710469445,
+                  "kind": 1,
+                  "tags": [],
+                  "content": "qweqweqwe",
+                  "sig": "911c3aac1efd3d1e8749516b1f4eb1d52c4522e236d5d91f4bbba6f211aa698dab980e3fe064a219d32b153ffcea83c6555450e020a882fb22c19172805afd23"
+                }
+              ]
+        count: 100
