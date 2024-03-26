@@ -177,12 +177,8 @@ impl Conn for WebServer {
             },
         ));
 
-        // Send the close message to the client.
-        if let Err(e) = write.send(close_message).await {
-            log::error!("Failed to send close message: {}", e);
-        }
+        let _ = write.send(close_message).await;
 
-        // Close the underlying WebSocket stream.
         if let Err(e) = write.close().await {
             log::error!("Failed to close WebSocket stream: {}", e);
         }
@@ -233,7 +229,14 @@ impl Conn for WebServer {
                     Message::Binary(bin) => {
                         println!("Received binary: {:?}", bin);
                     }
-                    Message::Close(_) => {
+
+                    Message::Close(Some(close_frame)) => {
+                        log::debug!("Received close frame: {:?}", close_frame);
+                        self.close_connection(&mut write).await;
+                        break;
+                    }
+
+                    Message::Close(None) => {
                         log::debug!("{}", CLOSE);
                         self.close_connection(&mut write).await;
                         break;
