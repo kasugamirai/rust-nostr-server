@@ -1,0 +1,9 @@
+version: "3.8"
+
+services:
+  myapp:
+    build: .
+    ports:
+      - "3030:3030"
+    environment:
+      - RUST_LOG=info
