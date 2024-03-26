@@ -1,19 +1,12 @@
-# Use the official Rust image as the base image
+# Stage 1: Build the application
 FROM rust:1.77 as builder
-
-# Set the working directory in the Docker container
 WORKDIR /usr/src/myapp
-
-# Copy the source code into the container
 COPY . .
-
-# Compile the application in release mode
+RUN apt-get update && apt-get install -y clang libclang-dev && rm -rf /var/lib/apt/lists/*
 RUN cargo build --release
 
-# Use the Debian Slim image for the runtime environment
-FROM debian:buster-slim
-
-# Install required packages and remove the cache to keep the image small
+# Stage 2: Create the runtime environment
+FROM rust:1.77
 RUN apt-get update && apt-get install -y libssl-dev && rm -rf /var/lib/apt/lists/*
 
 # Copy the compiled application from the builder stage
