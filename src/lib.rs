@@ -7,7 +7,6 @@ mod msgapi;
 //pub use db::Server;
 pub use limiter::RateLimitError;
 pub use msgapi::IncomingMessage;
-pub use msgapi::MessageHandler;
 pub use msgapi::OutgoingHandler;
 pub use msgapi::OutgoingMessage;
 pub enum Error {
@@ -17,3 +16,4 @@ pub enum Error {
 }
 
 pub use limiter::RateLimiter;
+pub use msgapi::HandlerResult;
