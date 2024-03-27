@@ -1,5 +1,4 @@
 use crate::IncomingMessage;
-use crate::MessageHandler;
 use crate::RateLimiter;
 //use crate::{Handlers, Server};
 use futures_util::stream::SplitSink;
@@ -14,7 +13,7 @@ use std::net::SocketAddr;
 use std::time::Duration;
 use tokio_tungstenite::WebSocketStream;
 //use std::os::macos::raw;
-use crate::msgapi::HandlerResult;
+use crate::HandlerResult;
 use tokio::net::{TcpListener, TcpStream};
 use tokio_tungstenite::accept_async;
 use tokio_tungstenite::tungstenite::protocol::Message;
