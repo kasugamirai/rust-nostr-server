@@ -1,0 +1,1 @@
+artillery run nostr.yml
