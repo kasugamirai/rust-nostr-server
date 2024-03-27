@@ -1,14 +1,20 @@
-use super::Inner::InnerReq;
-use super::Inner::{self, InnerEvent};
-use super::Inner::{InnerAuth, MessageHandle};
-use super::Inner::{InnerClose, InnerCount};
+use std::alloc::LayoutErr;
+use std::iter::Successors;
+use std::ptr::addr_of;
+
 use async_trait::async_trait;
+use futures_util::future::ok;
+use futures_util::sink::Close;
+use futures_util::stream::{Count, Filter};
+use nostr::event::{kind, raw};
 use nostr::{
     event, message::MessageHandleError, ClientMessage, Event, RawRelayMessage, RelayMessage,
 };
+use nostr::{JsonUtil, SubscriptionId};
+use nostr_database::nostr;
 use nostr_database::{DatabaseError, NostrDatabase, Order};
 use nostr_rocksdb::RocksDatabase;
-use Inner::HandlerResult;
+use tokio_tungstenite::tungstenite::http::response;
 
 const DEDUPLICATED_EVENT: &str = "deduplicated event";
 const EVENT_SIGNATURE_VALID: &str = "event signature is valid";
@@ -24,7 +30,6 @@ pub enum Error {
     MessageHandle(MessageHandleError),
     Database(nostr_rocksdb::database::DatabaseError),
     ToClientMessage(serde_json::Error),
-    InnerMessage(Inner::Error),
 }
 
 impl std::fmt::Display for Error {
@@ -34,14 +39,7 @@ impl std::fmt::Display for Error {
             Self::MessageHandle(e) => write!(f, "message handle error: {}", e),
             Self::Database(e) => write!(f, "database error: {}", e),
             Self::ToClientMessage(e) => write!(f, "to client message error: {}", e),
-            Self::InnerMessage(e) => write!(f, "inner message error: {}", e),
         }
-    }
-}
-
-impl From<Inner::Error> for Error {
-    fn from(e: Inner::Error) -> Self {
-        Self::InnerMessage(e)
     }
 }
 
@@ -76,62 +74,83 @@ impl IncomingMessage {
     }
 }
 
-#[async_trait]
-pub trait MessageHandler {
-    async fn handlers(&self, client_message: ClientMessage) -> Result<HandlerResult, Error>;
-    async fn to_client_message(&self, txt: &str) -> Result<ClientMessage, Error>;
-    async fn check_signature<'a>(&self, event: &'a Event) -> Result<(), Error>;
+#[derive(Debug)]
+pub struct OperationData<Data> {
+    data: Data,
+}
+impl<Data> OperationData<Data> {
+    pub async fn new(data: Data) -> Self {
+        OperationData { data }
+    }
+    pub async fn get_data(&self) -> &Data {
+        &self.data
+    }
 }
 
-#[async_trait]
-impl MessageHandler for IncomingMessage {
+#[derive(Debug)]
+pub enum HandlerResult {
+    DoAuth(OperationData<String>),
+    DoEvent(OperationData<String>),
+    DoReq(OperationData<Vec<String>>),
+    DoClose(OperationData<String>),
+    DoCount(OperationData<String>),
+    String(String),
+    Strings(Vec<String>),
+}
+
+impl std::fmt::Display for HandlerResult {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        match self {
+            Self::DoAuth(_) => write!(f, "DoAuth"),
+            Self::DoEvent(_) => write!(f, "DoEvent"),
+            Self::DoReq(_) => write!(f, "DoReq"),
+            Self::DoClose(_) => write!(f, "DoClose"),
+            Self::DoCount(_) => write!(f, "DoCount"),
+            Self::String(_) => write!(f, "String"),
+            Self::Strings(_) => write!(f, "Strings"),
+        }
+    }
+}
+
+impl IncomingMessage {
     async fn check_signature<'a>(&self, event: &'a Event) -> Result<(), Error> {
         let ret = event.verify_signature()?;
         Ok(ret)
     }
-    async fn to_client_message(&self, txt: &str) -> Result<ClientMessage, Error> {
+    pub async fn to_client_message(&self, txt: &str) -> Result<ClientMessage, Error> {
         let ret: ClientMessage = <ClientMessage as nostr::JsonUtil>::from_json(txt)?;
         Ok(ret)
     }
-    async fn handlers(&self, client_message: ClientMessage) -> Result<HandlerResult, Error> {
+    pub async fn handlers(&self, client_message: ClientMessage) -> Result<HandlerResult, Error> {
         match client_message {
             ClientMessage::Event(event) => {
-                let InnerEvent = InnerEvent::new(event, self.db.clone()).await;
-                let ret = InnerEvent.handle().await?;
+                let ret = self.handle_event(event).await?;
                 Ok(ret)
             }
             ClientMessage::Auth(auth) => {
-                let InnerAuth = InnerAuth::new(auth).await;
-                let ret = InnerAuth.handle().await?;
+                let ret = self.handle_auth(auth).await?;
                 Ok(ret)
             }
             ClientMessage::Close(sid) => {
-                let InnerClose = InnerClose::new(sid).await;
-                let ret = InnerClose.handle().await?;
+                let ret = self.handle_close(sid).await?;
                 Ok(ret)
             }
             ClientMessage::NegClose { subscription_id } => {
-                //TODO
-                let CloseMessage = "close message";
-                let response: RelayMessage = RelayMessage::closed(subscription_id, CloseMessage);
-                //let ret: DoNegClose;
-                let ret: Vec<String> = vec!["TODO".to_string()];
-                Ok(HandlerResult::Strings(ret))
+                let ret = self.handle_neg_close(subscription_id).await?;
+                Ok(ret)
             }
             ClientMessage::Count {
                 subscription_id,
                 filters,
             } => {
-                let InnerCount = InnerCount::new(subscription_id, filters, self.db.clone()).await;
-                let ret = InnerCount.handle().await?;
+                let ret = self.handle_count(subscription_id, filters).await?;
                 Ok(ret)
             }
             ClientMessage::Req {
                 subscription_id,
                 filters,
             } => {
-                let InnerReq = InnerReq::new(subscription_id, filters, self.db.clone()).await;
-                let ret = InnerReq.handle().await?;
+                let ret = self.handle_req(subscription_id, filters).await?;
                 Ok(ret)
             }
             ClientMessage::NegOpen {
@@ -140,16 +159,154 @@ impl MessageHandler for IncomingMessage {
                 id_size,
                 initial_message,
             } => {
-                let ret: Vec<String> = vec!["TODO".to_string()];
-                Ok(HandlerResult::Strings(ret))
+                let ret = self
+                    .handle_neg_open(subscription_id, filter, id_size, initial_message)
+                    .await?;
+                Ok(ret)
             }
             ClientMessage::NegMsg {
                 subscription_id,
                 message,
             } => {
-                let ret = vec!["TODO".to_string()];
-                Ok(HandlerResult::Strings(ret))
+                let ret = self.handle_neg_msg(subscription_id, message).await?;
+                Ok(ret)
             }
         }
+    }
+}
+
+impl IncomingMessage {
+    async fn handle_auth(&self, auth: Box<Event>) -> Result<HandlerResult, Error> {
+        let event_id = auth.id();
+
+        match self.check_signature(&auth).await {
+            Ok(_) => {
+                let status: bool = true;
+                let message: &str = "auth signature is valid";
+                let response: RelayMessage = RelayMessage::ok(event_id, status, message);
+                let response_str: String = serde_json::to_string(&response)?;
+                let ret = OperationData::new(response_str).await;
+                return Ok(HandlerResult::DoAuth(ret));
+            }
+            Err(e) => {
+                let err: String = e.to_string();
+                let status: bool = false;
+                let response: RelayMessage = RelayMessage::ok(event_id, status, &err);
+                let response_str: String = serde_json::to_string(&response)?;
+                let ret = OperationData::new(response_str).await;
+                return Ok(HandlerResult::DoAuth(ret));
+            }
+        }
+    }
+
+    async fn handle_close(&self, sid: SubscriptionId) -> Result<HandlerResult, Error> {
+        let reason: String = String::from("received close message from client");
+        let response: RelayMessage = RelayMessage::closed(sid, &reason);
+        let ret = OperationData::new(serde_json::to_string(&response)?).await;
+        Ok(HandlerResult::DoClose(ret))
+    }
+
+    async fn handle_neg_close(&self, sid: SubscriptionId) -> Result<HandlerResult, Error> {
+        let CloseMessage = "close message";
+        let response: RelayMessage = RelayMessage::closed(sid, CloseMessage);
+        let ret: Vec<String> = vec!["TODO".to_string()];
+        Ok(HandlerResult::Strings(ret))
+    }
+
+    async fn handle_count(
+        &self,
+        sid: SubscriptionId,
+        filters: Vec<nostr::Filter>,
+    ) -> Result<HandlerResult, Error> {
+        let count: usize = self.db.count(filters).await?;
+        let response: RelayMessage = RelayMessage::count(sid, count);
+        let response_str: String = serde_json::to_string(&response)?;
+
+        let ret: OperationData<String> = OperationData::new(response_str).await;
+        Ok(HandlerResult::DoCount(ret))
+    }
+
+    async fn handle_req(
+        &self,
+        sid: SubscriptionId,
+        filters: Vec<nostr::Filter>,
+    ) -> Result<HandlerResult, Error> {
+        let order: Order = Order::Desc;
+        let queried_events: Vec<Event> = self.db.query(filters, order).await?;
+        let mut ret: Vec<String> = Vec::with_capacity(queried_events.len());
+        for e in queried_events.into_iter() {
+            let relay_messages: RelayMessage = RelayMessage::event(sid.clone(), e);
+            let serialized: String = serde_json::to_string(&relay_messages)?;
+            ret.push(serialized);
+        }
+        let end_of_send_event: RelayMessage = RelayMessage::eose(sid);
+        let end_of_send_event_str: String = serde_json::to_string(&end_of_send_event)?;
+        ret.push(end_of_send_event_str);
+        let ret = OperationData::new(ret).await;
+        Ok(HandlerResult::DoReq(ret))
+    }
+
+    async fn handle_neg_open(
+        &self,
+        sid: SubscriptionId,
+        filter: Box<nostr::Filter>,
+        id_size: u8,
+        initial_message: String,
+    ) -> Result<HandlerResult, Error> {
+        let ret: Vec<String> = vec!["TODO".to_string()];
+        Ok(HandlerResult::Strings(ret))
+    }
+
+    async fn handle_neg_msg(
+        &self,
+        sid: SubscriptionId,
+        message: String,
+    ) -> Result<HandlerResult, Error> {
+        let ret = vec!["TODO".to_string()];
+        Ok(HandlerResult::Strings(ret))
+    }
+
+    async fn handle_event(&self, event: Box<Event>) -> Result<HandlerResult, Error> {
+        let response: RelayMessage;
+        let eid: nostr::EventId = event.id();
+        let event_kind = event.kind();
+        if event_kind == nostr::Kind::EventDeletion {
+            let filter = nostr::Filter::new().event(eid);
+            self.db.delete(filter).await?;
+            let content: String = event.content().to_string();
+            response = RelayMessage::ok(eid, true, &content);
+            let response_str: String = serde_json::to_string(&response)?;
+            let ret = OperationData::new(response_str).await;
+            return Ok(HandlerResult::DoEvent(ret));
+        }
+
+        match self.check_signature(&event).await {
+            Ok(_) => {
+                log::info!("Event signature is valid");
+            }
+            Err(e) => {
+                let err = e.to_string();
+                response = RelayMessage::ok(eid, false, &err);
+                let response_str = serde_json::to_string(&response)?;
+                let ret = OperationData::new(response_str).await;
+                return Ok(HandlerResult::DoEvent(ret));
+            }
+        }
+
+        let content: String = event.content().to_string();
+        let event_existed: bool = self.db.has_event_already_been_saved(&eid).await?;
+        if !event_existed && !event_kind.is_ephemeral() {
+            let success: bool = self.db.save_event(&event).await?;
+            if success {
+                response = RelayMessage::ok(eid, true, &content);
+            } else {
+                response = RelayMessage::ok(eid, false, &content);
+            }
+        } else {
+            response = RelayMessage::ok(eid, true, DEDUPLICATED_EVENT);
+        }
+        let response_str: String = serde_json::to_string(&response)?;
+        let ret = OperationData::new(response_str).await;
+        Ok(HandlerResult::DoEvent(ret))
     }
 }
