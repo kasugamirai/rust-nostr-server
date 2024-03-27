@@ -78,31 +78,38 @@ impl fmt::Display for WebServer {
 
 impl WebServer {
     pub async fn new(port: u16) -> Self {
-        let addr = format!("127.0.0.1:{}", port).parse::<SocketAddr>();
-        let addr = match addr {
-            Ok(a) => a,
-            Err(e) => {
-                eprintln!("Failed to parse address: {}", e);
-                std::process::exit(1);
-            }
-        };
-        let handler = IncomingMessage::new().await;
-        let handler = match handler {
-            Ok(h) => h,
-            Err(err) => {
-                eprintln!("Failed to create message handler: {}", err);
-                std::process::exit(1);
-            }
-        };
-        debug!("WebServer created at {}", addr);
-        let limiter: RateLimiter = RateLimiter::new(120, Duration::from_secs(60));
-        //debug!("Message handler created: {:?}", handler);
+        let address = Self::create_address(port);
+        let message_handler = Self::new_handler().await;
+        let rate_limiter = Self::new_rate_limiter();
+
+        debug!("WebServer created at {}", address);
         WebServer {
-            addr,
-            handler,
-            limiter,
+            addr: address,
+            handler: message_handler,
+            limiter: rate_limiter,
         }
     }
+
+    fn new_rate_limiter() -> RateLimiter {
+        RateLimiter::new(120, Duration::from_secs(60))
+    }
+
+    async fn new_handler() -> IncomingMessage {
+        IncomingMessage::new().await.unwrap_or_else(|e| {
+            eprintln!("Failed to create message handler: {}", e);
+            std::process::exit(1);
+        })
+    }
+
+
+
+    fn create_address(port: u16) -> SocketAddr {
+        format!("127.0.0.1:{}", port).parse::<SocketAddr>().unwrap_or_else(|e| {
+            eprintln!("Failed to parse address: {}", e);
+            std::process::exit(1);
+        })
+    }
+
 
     pub async fn start_listening(&self) -> Result<TcpListener, Error> {
         let listener: TcpListener = TcpListener::bind(&self.addr).await?;
