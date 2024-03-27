@@ -1,20 +1,7 @@
-use std::alloc::LayoutErr;
-use std::iter::Successors;
-use std::ptr::addr_of;
-
-use async_trait::async_trait;
-use futures_util::future::ok;
-use futures_util::sink::Close;
-use futures_util::stream::{Count, Filter};
-use nostr::event::{kind, raw};
-use nostr::{
-    event, message::MessageHandleError, ClientMessage, Event, RawRelayMessage, RelayMessage,
-};
-use nostr::{JsonUtil, SubscriptionId};
-use nostr_database::nostr;
-use nostr_database::{DatabaseError, NostrDatabase, Order};
+use nostr::SubscriptionId;
+use nostr::{event, message::MessageHandleError, ClientMessage, Event, RelayMessage};
+use nostr_database::{NostrDatabase, Order};
 use nostr_rocksdb::RocksDatabase;
-use tokio_tungstenite::tungstenite::http::response;
 
 const DEDUPLICATED_EVENT: &str = "deduplicated event";
 const EVENT_SIGNATURE_VALID: &str = "event signature is valid";
