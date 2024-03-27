@@ -1,10 +1,9 @@
 mod incoming;
 mod outgoing;
+pub use incoming::HandlerResult;
 pub use incoming::IncomingMessage;
-pub use incoming::MessageHandler;
 pub use outgoing::OutgoingHandler;
 pub use outgoing::OutgoingMessage;
-
 #[derive(Debug)]
 pub enum Error {
     Incoming(incoming::Error),
@@ -20,6 +19,4 @@ impl std::fmt::Display for Error {
     }
 }
 
-mod Inner;
 mod challange;
-pub use Inner::HandlerResult;
