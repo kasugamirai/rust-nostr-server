@@ -3,8 +3,9 @@ use nostr::{event, message::MessageHandleError, ClientMessage, Event, RelayMessa
 use nostr_database::{NostrDatabase, Order};
 use nostr_rocksdb::RocksDatabase;
 
-const DEDUPLICATED_EVENT: &str = "deduplicated event";
-const EVENT_SIGNATURE_VALID: &str = "event signature is valid";
+const DEDUPLICATED_EVENT: &'static str = "deduplicated event";
+const EVENT_SIGNATURE_VALID: &'static str = "event signature is valid";
+const close_message: &'static str = "received close message from client";
 
 #[derive(Debug, Clone)]
 pub struct IncomingMessage {
@@ -169,8 +170,8 @@ impl IncomingMessage {
         match self.check_signature(&auth).await {
             Ok(_) => {
                 let status: bool = true;
-                let message: &str = "auth signature is valid";
-                let response: RelayMessage = RelayMessage::ok(event_id, status, message);
+                let response: RelayMessage =
+                    RelayMessage::ok(event_id, status, EVENT_SIGNATURE_VALID);
                 let response_str: String = serde_json::to_string(&response)?;
                 let ret = OperationData::new(response_str).await;
                 return Ok(HandlerResult::DoAuth(ret));
@@ -187,8 +188,7 @@ impl IncomingMessage {
     }
 
     async fn handle_close(&self, sid: SubscriptionId) -> Result<HandlerResult, Error> {
-        let reason: String = String::from("received close message from client");
-        let response: RelayMessage = RelayMessage::closed(sid, &reason);
+        let response: RelayMessage = RelayMessage::closed(sid, close_message);
         let ret = OperationData::new(serde_json::to_string(&response)?).await;
         Ok(HandlerResult::DoClose(ret))
     }
