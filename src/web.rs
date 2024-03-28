@@ -20,49 +20,6 @@ use tokio_tungstenite::tungstenite::protocol::Message;
 const CONNECTED: &'static str = "New WebSocket connection";
 const CLOSE: &'static str = "Received close message";
 
-#[derive(Debug)]
-pub enum Error {
-    Event(nostr::event::Error),
-    MessageHandle(MessageHandleError),
-    Database(DatabaseError),
-    TcpListener(std::io::Error),
-}
-
-impl fmt::Display for Error {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        match self {
-            Error::Event(e) => write!(f, "event: {}", e),
-            Error::MessageHandle(e) => write!(f, "message handle error: {}", e),
-            Error::Database(e) => write!(f, "database error: {}", e),
-            Error::TcpListener(e) => write!(f, "tcp listener error: {}", e),
-        }
-    }
-}
-
-impl From<std::io::Error> for Error {
-    fn from(e: std::io::Error) -> Self {
-        Self::TcpListener(e)
-    }
-}
-
-impl From<nostr::event::Error> for Error {
-    fn from(e: nostr::event::Error) -> Self {
-        Self::Event(e)
-    }
-}
-
-impl From<MessageHandleError> for Error {
-    fn from(e: MessageHandleError) -> Self {
-        Self::MessageHandle(e)
-    }
-}
-
-impl From<DatabaseError> for Error {
-    fn from(e: DatabaseError) -> Self {
-        Self::Database(e)
-    }
-}
-
 #[derive(Clone, Debug)]
 pub struct WebServer {
     addr: SocketAddr,
@@ -101,17 +58,16 @@ impl WebServer {
         })
     }
 
-
-
     fn create_address(port: u16) -> SocketAddr {
-        format!("127.0.0.1:{}", port).parse::<SocketAddr>().unwrap_or_else(|e| {
-            eprintln!("Failed to parse address: {}", e);
-            std::process::exit(1);
-        })
+        format!("127.0.0.1:{}", port)
+            .parse::<SocketAddr>()
+            .unwrap_or_else(|e| {
+                eprintln!("Failed to parse address: {}", e);
+                std::process::exit(1);
+            })
     }
 
-
-    pub async fn start_listening(&self) -> Result<TcpListener, Error> {
+    pub async fn start_listening(&self) -> Result<TcpListener, std::io::Error> {
         let listener: TcpListener = TcpListener::bind(&self.addr).await?;
         println!("WebSocket server running at {}", self.addr);
         Ok(listener)
@@ -149,25 +105,7 @@ impl WebServer {
             log::error!("Failed to echo message: {}", e);
         }
     }
-}
 
-pub trait Conn {
-    async fn handle_connection(&self, stream: TcpStream);
-    async fn close_connection(
-        &self,
-        write: &mut futures_util::stream::SplitSink<
-            tokio_tungstenite::WebSocketStream<tokio::net::TcpStream>,
-            tokio_tungstenite::tungstenite::protocol::Message,
-        >,
-    );
-    async fn handle_result(
-        &self,
-        result: HandlerResult,
-        write: &mut SplitSink<WebSocketStream<TcpStream>, Message>,
-    );
-}
-
-impl Conn for WebServer {
     async fn close_connection(
         &self,
         write: &mut futures_util::stream::SplitSink<
@@ -188,10 +126,22 @@ impl Conn for WebServer {
             log::error!("Failed to close WebSocket stream: {}", e);
         }
     }
+}
 
+pub trait Conn {
+    async fn handle_connection(&self, stream: TcpStream);
+    async fn handle_result(
+        &self,
+        result: HandlerResult,
+        write: &mut SplitSink<WebSocketStream<TcpStream>, Message>,
+    );
+}
+
+impl Conn for WebServer {
     async fn handle_connection(&self, stream: TcpStream) {
+        let c = Connection::new(stream).await;
         let ws_stream: tokio_tungstenite::WebSocketStream<TcpStream> =
-            match accept_async(stream).await {
+            match accept_async(c.stream).await {
                 Ok(ws) => ws,
                 Err(e) => {
                     log::error!("WebSocket handler failed: {}", e);
@@ -303,5 +253,26 @@ impl Conn for WebServer {
                 //self.close_connection(&mut write).await;
             }
         }
+    }
+}
+
+struct Connection {
+    stream: TcpStream,
+    authenticated: bool,
+}
+
+impl Connection {
+    async fn new(stream: TcpStream) -> Self {
+        Connection {
+            stream,
+            authenticated: false,
+        }
+    }
+    async fn authenticate(&mut self) {
+        self.authenticated = true;
+    }
+
+    async fn is_authenticated(&self) -> bool {
+        self.authenticated
     }
 }

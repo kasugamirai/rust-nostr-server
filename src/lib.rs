@@ -12,7 +12,7 @@ pub use msgapi::OutgoingMessage;
 pub enum Error {
     MsgApi(msgapi::Error),
     //   Server(db::Error),
-    Web(web::Error),
+    //Web(web::Error),
 }
 
 pub use limiter::RateLimiter;
