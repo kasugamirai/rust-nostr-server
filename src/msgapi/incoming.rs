@@ -77,7 +77,7 @@ impl<Data> OperationData<Data> {
 
 #[derive(Debug)]
 pub enum HandlerResult {
-    DoAuth(OperationData<String>),
+    DoAuth(OperationData<String>, bool),
     DoEvent(OperationData<String>),
     DoReq(OperationData<Vec<String>>),
     DoClose(OperationData<String>),
@@ -89,7 +89,7 @@ pub enum HandlerResult {
 impl std::fmt::Display for HandlerResult {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         match self {
-            Self::DoAuth(_) => write!(f, "DoAuth"),
+            Self::DoAuth(_, _) => write!(f, "DoAuth"),
             Self::DoEvent(_) => write!(f, "DoEvent"),
             Self::DoReq(_) => write!(f, "DoReq"),
             Self::DoClose(_) => write!(f, "DoClose"),
@@ -174,7 +174,7 @@ impl IncomingMessage {
                     RelayMessage::ok(event_id, status, EVENT_SIGNATURE_VALID);
                 let response_str: String = serde_json::to_string(&response)?;
                 let ret = OperationData::new(response_str).await;
-                return Ok(HandlerResult::DoAuth(ret));
+                return Ok(HandlerResult::DoAuth(ret, status));
             }
             Err(e) => {
                 let err: String = e.to_string();
@@ -182,7 +182,7 @@ impl IncomingMessage {
                 let response: RelayMessage = RelayMessage::ok(event_id, status, &err);
                 let response_str: String = serde_json::to_string(&response)?;
                 let ret = OperationData::new(response_str).await;
-                return Ok(HandlerResult::DoAuth(ret));
+                return Ok(HandlerResult::DoAuth(ret, status));
             }
         }
     }
