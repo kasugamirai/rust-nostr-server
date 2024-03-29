@@ -238,23 +238,23 @@ impl<'a> Conn<'a> {
                     //self.close_connection(&mut write).await;
                 }
             }
-            HandlerResult::DoClose(do_close) => {
+            HandlerResult::Close(do_close) => {
                 let message: Message = Message::Text(do_close.get_data().await.to_string());
                 self.server.echo_message(&mut write, &message).await;
                 self.server.close_connection(&mut write).await;
             }
-            HandlerResult::DoAuth(do_auth, _) => {
+            HandlerResult::Auth(do_auth, _) => {
                 let message: Message = Message::Text(do_auth.get_data().await.to_string());
                 self.server.echo_message(&mut write, &message).await;
                 self.verify();
                 //self.close_connection(&mut write).await;
             }
-            HandlerResult::DoEvent(do_event) => {
+            HandlerResult::Event(do_event) => {
                 let message: Message = Message::Text(do_event.get_data().await.to_string());
                 self.server.echo_message(&mut write, &message).await;
                 //self.close_connection(&mut write).await;
             }
-            HandlerResult::DoReq(do_req) => {
+            HandlerResult::Req(do_req) => {
                 let msgs: &Vec<String> = do_req.get_data().await;
                 for msg in msgs {
                     let message: Message = Message::Text(msg.to_string());
@@ -262,7 +262,7 @@ impl<'a> Conn<'a> {
                     //self.close_connection(&mut write).await;
                 }
             }
-            HandlerResult::DoCount(do_count) => {
+            HandlerResult::Count(do_count) => {
                 let message: Message = Message::Text(do_count.get_data().await.to_string());
                 self.server.echo_message(&mut write, &message).await;
                 //self.close_connection(&mut write).await;
