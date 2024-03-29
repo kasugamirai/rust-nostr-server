@@ -6,6 +6,7 @@ use nostr_rocksdb::RocksDatabase;
 const DEDUPLICATED_EVENT: &'static str = "deduplicated event";
 const EVENT_SIGNATURE_VALID: &'static str = "event signature is valid";
 const close_message: &'static str = "received close message from client";
+const database_path: &'static str = "./db/rocksdb";
 
 #[derive(Debug, Clone)]
 pub struct IncomingMessage {
@@ -57,7 +58,7 @@ impl From<MessageHandleError> for Error {
 
 impl IncomingMessage {
     pub async fn new() -> Result<Self, Error> {
-        let db = RocksDatabase::open("./db/rocksdb").await?;
+        let db = RocksDatabase::open(database_path).await?;
         Ok(Self { db })
     }
 }
