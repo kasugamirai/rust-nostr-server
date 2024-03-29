@@ -102,7 +102,7 @@ impl std::fmt::Display for HandlerResult {
 }
 
 impl IncomingMessage {
-    async fn check_signature<'a>(&self, event: &'a Event) -> Result<(), Error> {
+    fn check_signature<'a>(&self, event: &'a Event) -> Result<(), Error> {
         let ret = event.verify_signature()?;
         Ok(ret)
     }
@@ -168,7 +168,7 @@ impl IncomingMessage {
     async fn handle_auth(&self, auth: Box<Event>) -> Result<HandlerResult, Error> {
         let event_id = auth.id();
 
-        match self.check_signature(&auth).await {
+        match self.check_signature(&auth) {
             Ok(_) => {
                 let status: bool = true;
                 let response: RelayMessage =
@@ -268,7 +268,7 @@ impl IncomingMessage {
             return Ok(HandlerResult::DoEvent(ret));
         }
 
-        match self.check_signature(&event).await {
+        match self.check_signature(&event) {
             Ok(_) => {
                 log::info!("Event signature is valid");
             }
