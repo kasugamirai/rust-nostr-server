@@ -5,6 +5,7 @@ use futures_util::stream::StreamExt;
 use futures_util::SinkExt;
 use log::debug;
 use nostr::message::MessageHandleError;
+use nostr::types::url::form_urlencoded::Serializer;
 use nostr::ClientMessage;
 use nostr_database::DatabaseError;
 use std::fmt;
@@ -128,27 +129,43 @@ impl WebServer {
     }
 }
 
-pub trait Conn {
-    async fn handle_connection(&self, stream: TcpStream);
-    async fn handle_result(
-        &self,
-        result: HandlerResult,
-        write: &mut SplitSink<WebSocketStream<TcpStream>, Message>,
-    );
+impl WebServer {
+    async fn handle_connection(&self, stream: TcpStream) {
+        let mut conn = Conn::new(self).await;
+        conn.handle(stream).await;
+    }
 }
 
-impl Conn for WebServer {
-    async fn handle_connection(&self, stream: TcpStream) {
-        let c = Connection::new(stream).await;
+#[derive(Debug, Clone)]
+struct Conn<'a> {
+    server: &'a WebServer,
+    is_verified: bool,
+}
+
+impl<'a> Conn<'a> {
+    async fn new(server: &'a WebServer) -> Self {
+        Conn {
+            server,
+            is_verified: false,
+        }
+    }
+    fn verify(&mut self) {
+        self.is_verified = true;
+    }
+
+    fn is_verified(&self) -> bool {
+        self.is_verified
+    }
+    async fn handle(&mut self, stream: TcpStream) {
         let ws_stream: tokio_tungstenite::WebSocketStream<TcpStream> =
-            match accept_async(c.stream).await {
+            match accept_async(stream).await {
                 Ok(ws) => ws,
                 Err(e) => {
                     log::error!("WebSocket handler failed: {}", e);
                     return;
                 }
             };
-        let limiter = &self.limiter;
+        let limiter = &self.server.limiter;
         log::debug!("{}", CONNECTED);
         let (mut write, mut read) = ws_stream.split();
         while let Some(message) = read.next().await {
@@ -159,7 +176,7 @@ impl Conn for WebServer {
             match message {
                 Ok(msg) => match msg {
                     Message::Text(txt) => {
-                        let m = self.handler.to_client_message(&txt).await;
+                        let m = self.server.handler.to_client_message(&txt).await;
                         let m: ClientMessage = match m {
                             Ok(message) => message,
                             Err(err) => {
@@ -168,7 +185,7 @@ impl Conn for WebServer {
                             }
                         };
 
-                        let results = self.handler.handlers(m).await;
+                        let results = self.server.handler.handlers(m).await;
                         let results: HandlerResult = match results {
                             Ok(result) => result,
                             Err(err) => {
@@ -179,21 +196,19 @@ impl Conn for WebServer {
 
                         self.handle_result(results, &mut write).await;
                     }
-
-                    //TODO: handle binary messages
                     Message::Binary(bin) => {
                         println!("Received binary: {:?}", bin);
                     }
 
                     Message::Close(Some(close_frame)) => {
                         log::debug!("Received close frame: {:?}", close_frame);
-                        self.close_connection(&mut write).await;
+                        self.server.close_connection(&mut write).await;
                         break;
                     }
 
                     Message::Close(None) => {
                         log::debug!("{}", CLOSE);
-                        self.close_connection(&mut write).await;
+                        self.server.close_connection(&mut write).await;
                         break;
                     }
                     _ => {}
@@ -205,74 +220,53 @@ impl Conn for WebServer {
             }
         }
     }
-
     async fn handle_result(
-        &self,
+        &mut self,
         result: HandlerResult,
         mut write: &mut SplitSink<WebSocketStream<TcpStream>, Message>,
     ) {
         match result {
             HandlerResult::String(msg) => {
                 let message: Message = Message::Text(msg);
-                self.echo_message(&mut write, &message).await;
+                self.server.echo_message(&mut write, &message).await;
                 //self.close_connection(&mut write).await;
             }
             HandlerResult::Strings(msgs) => {
                 for msg in msgs {
                     let message: Message = Message::Text(msg);
-                    self.echo_message(&mut write, &message).await;
+                    self.server.echo_message(&mut write, &message).await;
                     //self.close_connection(&mut write).await;
                 }
             }
             HandlerResult::DoClose(do_close) => {
                 let message: Message = Message::Text(do_close.get_data().await.to_string());
-                self.echo_message(&mut write, &message).await;
-                self.close_connection(&mut write).await;
+                self.server.echo_message(&mut write, &message).await;
+                self.server.close_connection(&mut write).await;
             }
             HandlerResult::DoAuth(do_auth, _) => {
                 let message: Message = Message::Text(do_auth.get_data().await.to_string());
-                self.echo_message(&mut write, &message).await;
+                self.server.echo_message(&mut write, &message).await;
+                self.verify();
                 //self.close_connection(&mut write).await;
             }
             HandlerResult::DoEvent(do_event) => {
                 let message: Message = Message::Text(do_event.get_data().await.to_string());
-                self.echo_message(&mut write, &message).await;
+                self.server.echo_message(&mut write, &message).await;
                 //self.close_connection(&mut write).await;
             }
             HandlerResult::DoReq(do_req) => {
                 let msgs: &Vec<String> = do_req.get_data().await;
                 for msg in msgs {
                     let message: Message = Message::Text(msg.to_string());
-                    self.echo_message(&mut write, &message).await;
+                    self.server.echo_message(&mut write, &message).await;
                     //self.close_connection(&mut write).await;
                 }
             }
             HandlerResult::DoCount(do_count) => {
                 let message: Message = Message::Text(do_count.get_data().await.to_string());
-                self.echo_message(&mut write, &message).await;
+                self.server.echo_message(&mut write, &message).await;
                 //self.close_connection(&mut write).await;
             }
         }
-    }
-}
-
-struct Connection {
-    stream: TcpStream,
-    authenticated: bool,
-}
-
-impl Connection {
-    async fn new(stream: TcpStream) -> Self {
-        Connection {
-            stream,
-            authenticated: false,
-        }
-    }
-    async fn authenticate(&mut self) {
-        self.authenticated = true;
-    }
-
-    async fn is_authenticated(&self) -> bool {
-        self.authenticated
     }
 }
