@@ -38,7 +38,7 @@ impl WebServer {
     pub async fn new(port: u16) -> Self {
         let address = Self::create_address(port);
         let message_handler = Self::new_handler().await;
-        let rate_limiter = Self::new_rate_limiter();
+        let rate_limiter = Self::rate_limiter(100, Duration::from_secs(1));
 
         debug!("WebServer created at {}", address);
         WebServer {
@@ -48,8 +48,8 @@ impl WebServer {
         }
     }
 
-    fn new_rate_limiter() -> RateLimiter {
-        RateLimiter::new(120, Duration::from_secs(60))
+    fn rate_limiter(max: usize, period: Duration) -> RateLimiter {
+        RateLimiter::new(max, period)
     }
 
     async fn new_handler() -> IncomingMessage {

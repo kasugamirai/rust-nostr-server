@@ -22,7 +22,6 @@ impl RateLimiter {
         let permit = self.semaphore.clone().acquire_owned().await;
         match permit {
             Ok(permit) => {
-                // Release the permit after the specified period
                 let period = self.period;
                 tokio::spawn(async move {
                     tokio::time::sleep(period).await;
