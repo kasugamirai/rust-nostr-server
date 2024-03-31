@@ -90,11 +90,11 @@ pub enum HandlerResult {
 impl std::fmt::Display for HandlerResult {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         match self {
-            Self::Auth(_, _) => write!(f, "DoAuth"),
-            Self::Event(_) => write!(f, "DoEvent"),
-            Self::Req(_) => write!(f, "DoReq"),
-            Self::Close(_) => write!(f, "DoClose"),
-            Self::Count(_) => write!(f, "DoCount"),
+            Self::Auth(_, _) => write!(f, "Auth"),
+            Self::Event(_) => write!(f, "Event"),
+            Self::Req(_) => write!(f, "Req"),
+            Self::Close(_) => write!(f, "Close"),
+            Self::Count(_) => write!(f, "Count"),
             Self::String(_) => write!(f, "String"),
             Self::Strings(_) => write!(f, "Strings"),
         }
