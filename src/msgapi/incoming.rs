@@ -110,9 +110,16 @@ impl IncomingMessage {
         let ret: ClientMessage = <ClientMessage as nostr::JsonUtil>::from_json(txt)?;
         Ok(ret)
     }
-    pub async fn handlers(&self, client_message: ClientMessage) -> Result<HandlerResult, Error> {
+    pub async fn handlers(
+        &self,
+        client_message: ClientMessage,
+        certified: bool,
+    ) -> Result<HandlerResult, Error> {
         match client_message {
             ClientMessage::Event(event) => {
+                if certified {
+                    //todo: handle event
+                }
                 let ret = self.handle_event(event).await?;
                 Ok(ret)
             }

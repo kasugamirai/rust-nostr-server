@@ -176,6 +176,7 @@ impl<'a> Conn<'a> {
             match message {
                 Ok(msg) => match msg {
                     Message::Text(txt) => {
+                        let certified = self.is_verified();
                         let m = self.server.handler.to_client_message(&txt).await;
                         let m: ClientMessage = match m {
                             Ok(message) => message,
@@ -185,7 +186,7 @@ impl<'a> Conn<'a> {
                             }
                         };
 
-                        let results = self.server.handler.handlers(m).await;
+                        let results = self.server.handler.handlers(m, certified).await;
                         let results: HandlerResult = match results {
                             Ok(result) => result,
                             Err(err) => {
