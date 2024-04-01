@@ -11,6 +11,7 @@ use nostr_database::DatabaseError;
 use std::fmt;
 use std::net::SocketAddr;
 use std::time::Duration;
+use tokio_tungstenite::tungstenite::http::status;
 use tokio_tungstenite::WebSocketStream;
 //use std::os::macos::raw;
 use crate::HandlerResult;
@@ -244,10 +245,12 @@ impl<'a> Conn<'a> {
                 self.server.echo_message(&mut write, &message).await;
                 self.server.close_connection(&mut write).await;
             }
-            HandlerResult::Auth(do_auth, _) => {
+            HandlerResult::Auth(do_auth, status) => {
                 let message: Message = Message::Text(do_auth.get_data().await.to_string());
                 self.server.echo_message(&mut write, &message).await;
-                self.verify();
+                if status {
+                    self.verify();
+                }
                 //self.close_connection(&mut write).await;
             }
             HandlerResult::Event(do_event) => {
