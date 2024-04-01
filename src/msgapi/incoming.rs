@@ -118,7 +118,7 @@ impl IncomingMessage {
         match client_message {
             ClientMessage::Event(event) => {
                 if !certified {
-
+                    if is_channel_message(&event) {}
                     //todo: handle event
                 }
                 let ret = self.handle_event(event, certified).await?;
@@ -126,6 +126,8 @@ impl IncomingMessage {
             }
             ClientMessage::Auth(auth) => {
                 let ret = self.handle_auth(auth).await?;
+                //todo: send challenge message
+                //todo: set certified to true
                 Ok(ret)
             }
             ClientMessage::Close(sid) => {
@@ -270,9 +272,11 @@ impl IncomingMessage {
         let response: RelayMessage;
         let eid: nostr::EventId = event.id();
         let event_kind = event.kind();
-        if !certified {
+        if !certified && event_kind != nostr::Kind::ChannelCreation {
             log::debug!("Event is not certified");
-            if event_kind == nostr::Kind::ChannelMessage {}
+            if event_kind == nostr::Kind::ChannelMessage {
+                //todo: send challenge
+            }
         }
         if event_kind == nostr::Kind::EventDeletion {
             let filter = nostr::Filter::new().event(eid);
@@ -312,5 +316,15 @@ impl IncomingMessage {
         let response_str: String = serde_json::to_string(&response)?;
         let ret = OperationData::new(response_str).await;
         Ok(HandlerResult::Event(ret))
+    }
+}
+
+fn is_channel_message(event: &Event) -> bool {
+    match event.kind() {
+        nostr::Kind::ChannelMessage
+        | nostr::Kind::ChannelCreation
+        | nostr::Kind::ChannelMuteUser
+        | nostr::Kind::ChannelMetadata => true,
+        _ => false,
     }
 }
