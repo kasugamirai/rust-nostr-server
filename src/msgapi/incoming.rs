@@ -7,7 +7,7 @@ const DEDUPLICATED_EVENT: &'static str = "deduplicated event";
 const EVENT_SIGNATURE_VALID: &'static str = "event signature is valid";
 const close_message: &'static str = "received close message from client";
 const database_path: &'static str = "./db/rocksdb";
-
+use super::Challenge;
 #[derive(Debug, Clone)]
 pub struct IncomingMessage {
     db: RocksDatabase,
@@ -272,11 +272,9 @@ impl IncomingMessage {
         let response: RelayMessage;
         let eid: nostr::EventId = event.id();
         let event_kind = event.kind();
-        if !certified && event_kind != nostr::Kind::ChannelCreation {
+        if !certified && is_channel_message(&event) {
             log::debug!("Event is not certified");
-            if event_kind == nostr::Kind::ChannelMessage {
-                //todo: send challenge
-            }
+            //todo: send challenge
         }
         if event_kind == nostr::Kind::EventDeletion {
             let filter = nostr::Filter::new().event(eid);

@@ -20,3 +20,5 @@ impl std::fmt::Display for Error {
 }
 
 mod challange;
+
+pub use challange::Challenge;
