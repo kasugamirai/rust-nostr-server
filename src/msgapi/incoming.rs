@@ -117,10 +117,11 @@ impl IncomingMessage {
     ) -> Result<HandlerResult, Error> {
         match client_message {
             ClientMessage::Event(event) => {
-                if certified {
+                if !certified {
+
                     //todo: handle event
                 }
-                let ret = self.handle_event(event).await?;
+                let ret = self.handle_event(event, certified).await?;
                 Ok(ret)
             }
             ClientMessage::Auth(auth) => {
@@ -261,10 +262,18 @@ impl IncomingMessage {
         Ok(HandlerResult::Strings(ret))
     }
 
-    async fn handle_event(&self, event: Box<Event>) -> Result<HandlerResult, Error> {
+    async fn handle_event(
+        &self,
+        event: Box<Event>,
+        certified: bool,
+    ) -> Result<HandlerResult, Error> {
         let response: RelayMessage;
         let eid: nostr::EventId = event.id();
         let event_kind = event.kind();
+        if !certified {
+            log::debug!("Event is not certified");
+            if event_kind == nostr::Kind::ChannelMessage {}
+        }
         if event_kind == nostr::Kind::EventDeletion {
             let filter = nostr::Filter::new().event(eid);
             self.db.delete(filter).await?;
