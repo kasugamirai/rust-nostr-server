@@ -1,21 +1,21 @@
 use nostr::SubscriptionId;
-use nostr::{event, message::MessageHandleError, ClientMessage, Event, RelayMessage};
+use nostr::{ClientMessage, Event, RelayMessage};
 use nostr_database::{NostrDatabase, Order};
 use nostr_rocksdb::RocksDatabase;
 
 const DEDUPLICATED_EVENT: &'static str = "deduplicated event";
 const EVENT_SIGNATURE_VALID: &'static str = "event signature is valid";
-const close_message: &'static str = "received close message from client";
-const database_path: &'static str = "./db/rocksdb";
+const CLOSE_MESSAGE: &'static str = "received close message from client";
+const DATABASE_PATH: &'static str = "./db/rocksdb";
 use super::Error;
 use super::OperationData;
 use super::OutgoingHandler;
 use crate::HandlerResult;
 
+use super::Challenge;
 use super::OutgoingMessage;
-use super::{outgoing, Challenge};
 
-const CHALLANGE_MESSAGE: &'static str = "helloWorld";
+const CHALLENGE_MESSAGE: &'static str = "helloWorld";
 #[derive(Debug, Clone)]
 pub struct IncomingMessage {
     db: RocksDatabase,
@@ -23,7 +23,7 @@ pub struct IncomingMessage {
 
 impl IncomingMessage {
     pub async fn new() -> Result<Self, Error> {
-        let db = RocksDatabase::open(database_path).await?;
+        let db = RocksDatabase::open(DATABASE_PATH).await?;
         Ok(Self { db })
     }
 }
@@ -104,38 +104,55 @@ impl IncomingMessage {
 impl IncomingMessage {
     async fn handle_auth(&self, auth: Box<Event>) -> Result<HandlerResult, Error> {
         let event_id = auth.id();
-
-        match self.check_signature(&auth) {
-            Ok(_) => {
-                let status: bool = true;
-                let response: RelayMessage =
-                    RelayMessage::ok(event_id, status, EVENT_SIGNATURE_VALID);
-                let response_str: String = serde_json::to_string(&response)?;
-                let ret = OperationData::new(response_str).await;
-                return Ok(HandlerResult::Auth(ret, status));
-            }
-            Err(e) => {
-                let err: String = e.to_string();
-                let status: bool = false;
-                let response: RelayMessage = RelayMessage::ok(event_id, status, &err);
-                let response_str: String = serde_json::to_string(&response)?;
-                let ret = OperationData::new(response_str).await;
-                return Ok(HandlerResult::Auth(ret, status));
-            }
+        let challenge = Challenge::new(&auth);
+        let time_check = challenge.time_check();
+        let signature_check = challenge.signature_check();
+        let client_authentication = challenge.client_authentication();
+        let relay_check = challenge.relay_check();
+        if !time_check {
+            let response: RelayMessage = RelayMessage::ok(event_id, false, "time check failed");
+            let response_str: String = serde_json::to_string(&response)?;
+            let ret = OperationData::new(response_str);
+            return Ok(HandlerResult::Auth(ret, false));
         }
+        if !signature_check {
+            let response: RelayMessage =
+                RelayMessage::ok(event_id, false, "signature check failed");
+            let response_str: String = serde_json::to_string(&response)?;
+            let ret = OperationData::new(response_str);
+            return Ok(HandlerResult::Auth(ret, false));
+        }
+        if !client_authentication {
+            let response: RelayMessage =
+                RelayMessage::ok(event_id, false, "client authentication failed");
+            let response_str: String = serde_json::to_string(&response)?;
+            let ret = OperationData::new(response_str);
+            return Ok(HandlerResult::Auth(ret, false));
+        }
+        if !relay_check {
+            let response: RelayMessage = RelayMessage::ok(event_id, false, "relay check failed");
+            let response_str: String = serde_json::to_string(&response)?;
+            let ret = OperationData::new(response_str);
+            return Ok(HandlerResult::Auth(ret, false));
+        }
+
+        let status: bool = true;
+        let response: RelayMessage = RelayMessage::ok(event_id, status, EVENT_SIGNATURE_VALID);
+        let response_str: String = serde_json::to_string(&response)?;
+        let ret = OperationData::new(response_str);
+        return Ok(HandlerResult::Auth(ret, status));
     }
 
     async fn handle_close(&self, sid: SubscriptionId) -> Result<HandlerResult, Error> {
-        let response: RelayMessage = RelayMessage::closed(sid, close_message);
-        let ret = OperationData::new(serde_json::to_string(&response)?).await;
+        let response: RelayMessage = RelayMessage::closed(sid, CLOSE_MESSAGE);
+        let ret = OperationData::new(serde_json::to_string(&response)?);
         Ok(HandlerResult::Close(ret))
     }
 
     async fn handle_neg_close(&self, sid: SubscriptionId) -> Result<HandlerResult, Error> {
-        let CloseMessage = "close message";
-        let response: RelayMessage = RelayMessage::closed(sid, CloseMessage);
-        let ret: Vec<String> = vec!["TODO".to_string()];
-        Ok(HandlerResult::Strings(ret))
+        let close_message = "close message";
+        let response: RelayMessage = RelayMessage::closed(sid, close_message);
+        todo!("handle_neg_close")
     }
 
     async fn handle_count(
@@ -147,7 +164,7 @@ impl IncomingMessage {
         let response: RelayMessage = RelayMessage::count(sid, count);
         let response_str: String = serde_json::to_string(&response)?;
 
-        let ret: OperationData<String> = OperationData::new(response_str).await;
+        let ret: OperationData<String> = OperationData::new(response_str);
         Ok(HandlerResult::Count(ret))
     }
 
@@ -167,7 +184,7 @@ impl IncomingMessage {
         let end_of_send_event: RelayMessage = RelayMessage::eose(sid);
         let end_of_send_event_str: String = serde_json::to_string(&end_of_send_event)?;
         ret.push(end_of_send_event_str);
-        let ret = OperationData::new(ret).await;
+        let ret = OperationData::new(ret);
         Ok(HandlerResult::Req(ret))
     }
 
@@ -178,8 +195,7 @@ impl IncomingMessage {
         id_size: u8,
         initial_message: String,
     ) -> Result<HandlerResult, Error> {
-        let ret: Vec<String> = vec!["TODO".to_string()];
-        Ok(HandlerResult::Strings(ret))
+        todo!("handle_neg_open");
     }
 
     async fn handle_neg_msg(
@@ -187,8 +203,7 @@ impl IncomingMessage {
         sid: SubscriptionId,
         message: String,
     ) -> Result<HandlerResult, Error> {
-        let ret = vec!["TODO".to_string()];
-        Ok(HandlerResult::Strings(ret))
+        todo!("handle_neg_msg");
     }
 
     async fn handle_event(
@@ -201,9 +216,8 @@ impl IncomingMessage {
         let event_kind = event.kind();
         if !certified && is_channel_message(&event) {
             log::debug!("Event is not certified");
-            //todo: send challenge
             let outgoing = OutgoingMessage::new();
-            return outgoing.send_challenge(CHALLANGE_MESSAGE).await;
+            return outgoing.send_challenge(CHALLENGE_MESSAGE).await;
         }
         if event_kind == nostr::Kind::EventDeletion {
             let filter = nostr::Filter::new().event(eid);
@@ -211,7 +225,7 @@ impl IncomingMessage {
             let content: String = event.content().to_string();
             response = RelayMessage::ok(eid, true, &content);
             let response_str: String = serde_json::to_string(&response)?;
-            let ret = OperationData::new(response_str).await;
+            let ret = OperationData::new(response_str);
             return Ok(HandlerResult::Event(ret));
         }
 
@@ -223,7 +237,7 @@ impl IncomingMessage {
                 let err = e.to_string();
                 response = RelayMessage::ok(eid, false, &err);
                 let response_str = serde_json::to_string(&response)?;
-                let ret = OperationData::new(response_str).await;
+                let ret = OperationData::new(response_str);
                 return Ok(HandlerResult::Event(ret));
             }
         }
@@ -241,7 +255,7 @@ impl IncomingMessage {
             response = RelayMessage::ok(eid, true, DEDUPLICATED_EVENT);
         }
         let response_str: String = serde_json::to_string(&response)?;
-        let ret = OperationData::new(response_str).await;
+        let ret = OperationData::new(response_str);
         Ok(HandlerResult::Event(ret))
     }
 }

@@ -13,10 +13,10 @@ pub struct OperationData<Data> {
     data: Data,
 }
 impl<Data> OperationData<Data> {
-    pub async fn new(data: Data) -> Self {
+    pub fn new(data: Data) -> Self {
         OperationData { data }
     }
-    pub async fn get_data(&self) -> &Data {
+    pub fn get_data(&self) -> &Data {
         &self.data
     }
 }

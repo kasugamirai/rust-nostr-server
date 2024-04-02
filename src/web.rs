@@ -227,58 +227,51 @@ impl<'a> Conn<'a> {
             HandlerResult::String(msg) => {
                 let message: Message = Message::Text(msg);
                 self.server.echo_message(&mut write, &message).await;
-                //self.close_connection(&mut write).await;
             }
             HandlerResult::Strings(msgs) => {
                 for msg in msgs {
                     let message: Message = Message::Text(msg);
                     self.server.echo_message(&mut write, &message).await;
-                    //self.close_connection(&mut write).await;
                 }
             }
             HandlerResult::Close(do_close) => {
-                let message: Message = Message::Text(do_close.get_data().await.to_string());
+                let message: Message = Message::Text(do_close.get_data().to_string());
                 self.server.echo_message(&mut write, &message).await;
                 self.server.close_connection(&mut write).await;
             }
             HandlerResult::Auth(do_auth, status) => {
-                let message: Message = Message::Text(do_auth.get_data().await.to_string());
+                let message: Message = Message::Text(do_auth.get_data().to_string());
                 self.server.echo_message(&mut write, &message).await;
                 if status {
                     self.verify();
                 }
-                //self.close_connection(&mut write).await;
             }
             HandlerResult::Event(do_event) => {
-                let message: Message = Message::Text(do_event.get_data().await.to_string());
+                let message: Message = Message::Text(do_event.get_data().to_string());
                 self.server.echo_message(&mut write, &message).await;
-                //self.close_connection(&mut write).await;
             }
             HandlerResult::Req(do_req) => {
-                let msgs: &Vec<String> = do_req.get_data().await;
+                let msgs: &Vec<String> = do_req.get_data();
                 for msg in msgs {
                     let message: Message = Message::Text(msg.to_string());
-                    self.server.echo_message(&mut write, &message).await;
-                    //self.close_connection(&mut write).await;
+                    self.server.echo_message(&mut write, &message);
                 }
             }
             HandlerResult::Count(do_count) => {
-                let message: Message = Message::Text(do_count.get_data().await.to_string());
+                let message: Message = Message::Text(do_count.get_data().to_string());
                 self.server.echo_message(&mut write, &message).await;
-                //self.close_connection(&mut write).await;
             }
             HandlerResult::Challenge(do_challenge) => {
-                let message: Message = Message::Text(do_challenge.get_data().await.to_string());
+                let message: Message = Message::Text(do_challenge.get_data().to_string());
                 self.server.echo_message(&mut write, &message).await;
-                //self.close_connection(&mut write).await;
             }
             HandlerResult::Notice(do_notice) => {
-                let message: Message = Message::Text(do_notice.get_data().await.to_string());
+                let message: Message = Message::Text(do_notice.get_data().to_string());
                 self.server.echo_message(&mut write, &message).await;
                 //self.close_connection(&mut write).await;
             }
             HandlerResult::Eose(do_eose) => {
-                let message: Message = Message::Text(do_eose.get_data().await.to_string());
+                let message: Message = Message::Text(do_eose.get_data().to_string());
                 self.server.echo_message(&mut write, &message).await;
                 //self.close_connection(&mut write).await;
             }
