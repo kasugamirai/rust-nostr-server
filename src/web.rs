@@ -254,7 +254,7 @@ impl<'a> Conn<'a> {
                 let msgs: &Vec<String> = do_req.get_data();
                 for msg in msgs {
                     let message: Message = Message::Text(msg.to_string());
-                    self.server.echo_message(&mut write, &message);
+                    self.server.echo_message(&mut write, &message).await;
                 }
             }
             HandlerResult::Count(do_count) => {
