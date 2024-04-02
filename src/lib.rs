@@ -16,4 +16,5 @@ pub enum Error {
 }
 
 pub use limiter::RateLimiter;
+pub use msgapi::Challenge;
 pub use msgapi::HandlerResult;

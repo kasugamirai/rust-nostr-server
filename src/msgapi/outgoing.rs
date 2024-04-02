@@ -35,7 +35,7 @@ impl From<serde_json::Error> for Error {
 pub struct OutgoingMessage {}
 
 impl OutgoingMessage {
-    pub async fn new() -> Self {
+    pub fn new() -> Self {
         OutgoingMessage {}
     }
 }
@@ -90,7 +90,10 @@ pub enum OutgoingMessageTypes {
 
 #[async_trait]
 pub trait OutgoingHandler {
-    async fn send_challenge(&self, challenge_msg: String) -> Result<OutgoingMessageTypes, Error>;
+    async fn send_challenge<'a, 'b: 'a>(
+        &'a self,
+        challenge_msg: &'b str,
+    ) -> Result<OutgoingMessageTypes, Error>;
     async fn send_notice(&self, notice_msg: String) -> Result<OutgoingMessageTypes, Error>;
     async fn send_eose(
         &self,
@@ -100,7 +103,10 @@ pub trait OutgoingHandler {
 
 #[async_trait]
 impl OutgoingHandler for OutgoingMessage {
-    async fn send_challenge(&self, challenge_msg: String) -> Result<OutgoingMessageTypes, Error> {
+    async fn send_challenge<'a, 'b: 'a>(
+        &'a self,
+        challenge_msg: &'b str,
+    ) -> Result<OutgoingMessageTypes, Error> {
         let relay_message: RelayMessage = RelayMessage::auth(challenge_msg);
         let challenge_str: String = serde_json::to_string(&relay_message)?;
         let ret = ChallengeMsg::new(challenge_str).await;

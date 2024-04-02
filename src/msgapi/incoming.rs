@@ -7,7 +7,12 @@ const DEDUPLICATED_EVENT: &'static str = "deduplicated event";
 const EVENT_SIGNATURE_VALID: &'static str = "event signature is valid";
 const close_message: &'static str = "received close message from client";
 const database_path: &'static str = "./db/rocksdb";
-use super::Challenge;
+use crate::OutgoingHandler;
+
+use super::OutgoingMessage;
+use super::{outgoing, Challenge};
+
+const CHALLANGE_MESSAGE: &'static str = "helloWorld";
 #[derive(Debug, Clone)]
 pub struct IncomingMessage {
     db: RocksDatabase,
@@ -19,6 +24,7 @@ pub enum Error {
     MessageHandle(MessageHandleError),
     Database(nostr_rocksdb::database::DatabaseError),
     ToClientMessage(serde_json::Error),
+    Outgoing(outgoing::Error),
 }
 
 impl std::fmt::Display for Error {
@@ -28,7 +34,14 @@ impl std::fmt::Display for Error {
             Self::MessageHandle(e) => write!(f, "message handle error: {}", e),
             Self::Database(e) => write!(f, "database error: {}", e),
             Self::ToClientMessage(e) => write!(f, "to client message error: {}", e),
+            Self::Outgoing(e) => write!(f, "outgoing error: {}", e),
         }
+    }
+}
+
+impl From<outgoing::Error> for Error {
+    fn from(e: outgoing::Error) -> Self {
+        Self::Outgoing(e)
     }
 }
 
@@ -275,6 +288,8 @@ impl IncomingMessage {
         if !certified && is_channel_message(&event) {
             log::debug!("Event is not certified");
             //todo: send challenge
+            let outgoing = OutgoingMessage::new();
+            outgoing.send_challenge(CHALLANGE_MESSAGE).await?;
         }
         if event_kind == nostr::Kind::EventDeletion {
             let filter = nostr::Filter::new().event(eid);
