@@ -71,15 +71,22 @@ impl WebServer {
         Ok(listener)
     }
 
-    pub async fn accept_connection(&self, listener: TcpListener) {
+    async fn accept_connection(&self, listener: TcpListener) {
         while let Ok((stream, _)) = listener.accept().await {
             let this: WebServer = self.clone();
             tokio::spawn(async move {
-                this.handle_connection(stream).await;
+                match accept_async(stream).await {
+                    Ok(ws_stream) => {
+                        this.handle_connection(ws_stream).await;
+                    }
+                    Err(e) => {
+                        log::warn!("WebSocket upgrade failed: {}", e);
+                        // ignore error
+                    }
+                }
             });
         }
     }
-
     pub async fn run(&self) {
         match self.start_listening().await {
             Ok(l) => {
@@ -127,9 +134,9 @@ impl WebServer {
 }
 
 impl WebServer {
-    async fn handle_connection(&self, stream: TcpStream) {
+    async fn handle_connection(&self, ws_stream: WebSocketStream<TcpStream>) {
         let mut conn = Conn::new(self).await;
-        conn.handle(stream).await;
+        conn.handle(ws_stream).await;
     }
 }
 
@@ -153,15 +160,7 @@ impl<'a> Conn<'a> {
     fn is_verified(&self) -> bool {
         self.is_verified
     }
-    async fn handle(&mut self, stream: TcpStream) {
-        let ws_stream: tokio_tungstenite::WebSocketStream<TcpStream> =
-            match accept_async(stream).await {
-                Ok(ws) => ws,
-                Err(e) => {
-                    log::error!("WebSocket handler failed: {}", e);
-                    return;
-                }
-            };
+    async fn handle(&mut self, ws_stream: WebSocketStream<TcpStream>) {
         let limiter = &self.server.limiter;
         log::debug!("{}", CONNECTED);
         let (mut write, mut read) = ws_stream.split();
