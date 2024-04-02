@@ -1,7 +1,10 @@
 [package]
 name = "rust-nostr-server"
 version = "0.1.0"
-edition = "2021"
+edition = "2024"
+authors = ["XIAO YU <xyzmhx@gmail.com>"]
+description = "A Discord bot using GPT-4"
+license = "MIT"
 
 [dependencies]
 monoio = "0.2.3"
