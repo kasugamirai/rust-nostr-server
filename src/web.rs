@@ -271,6 +271,21 @@ impl<'a> Conn<'a> {
                 self.server.echo_message(&mut write, &message).await;
                 //self.close_connection(&mut write).await;
             }
+            HandlerResult::Challenge(do_challenge) => {
+                let message: Message = Message::Text(do_challenge.get_data().await.to_string());
+                self.server.echo_message(&mut write, &message).await;
+                //self.close_connection(&mut write).await;
+            }
+            HandlerResult::Notice(do_notice) => {
+                let message: Message = Message::Text(do_notice.get_data().await.to_string());
+                self.server.echo_message(&mut write, &message).await;
+                //self.close_connection(&mut write).await;
+            }
+            HandlerResult::Eose(do_eose) => {
+                let message: Message = Message::Text(do_eose.get_data().await.to_string());
+                self.server.echo_message(&mut write, &message).await;
+                //self.close_connection(&mut write).await;
+            }
         }
     }
 }
