@@ -44,10 +44,6 @@ impl IncomingMessage {
     ) -> Result<HandlerResult, Error> {
         match client_message {
             ClientMessage::Event(event) => {
-                if !certified {
-                    if is_channel_message(&event) {}
-                    //todo: handle event
-                }
                 let ret = self.handle_event(event, certified).await?;
                 Ok(ret)
             }
@@ -242,14 +238,14 @@ impl IncomingMessage {
             }
         }
 
-        let content: String = event.content().to_string();
+        let content: &str = event.content();
         let event_existed: bool = self.db.has_event_already_been_saved(&eid).await?;
         if !event_existed && !event_kind.is_ephemeral() {
             let success: bool = self.db.save_event(&event).await?;
             if success {
-                response = RelayMessage::ok(eid, true, &content);
+                response = RelayMessage::ok(eid, true, content);
             } else {
-                response = RelayMessage::ok(eid, false, &content);
+                response = RelayMessage::ok(eid, false, content);
             }
         } else {
             response = RelayMessage::ok(eid, true, DEDUPLICATED_EVENT);
