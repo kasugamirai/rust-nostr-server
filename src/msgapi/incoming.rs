@@ -7,7 +7,9 @@ const DEDUPLICATED_EVENT: &'static str = "deduplicated event";
 const EVENT_SIGNATURE_VALID: &'static str = "event signature is valid";
 const close_message: &'static str = "received close message from client";
 const database_path: &'static str = "./db/rocksdb";
-use crate::OutgoingHandler;
+use super::OperationData;
+use super::OutgoingHandler;
+use crate::HandlerResult;
 
 use super::OutgoingMessage;
 use super::{outgoing, Challenge};
@@ -73,44 +75,6 @@ impl IncomingMessage {
     pub async fn new() -> Result<Self, Error> {
         let db = RocksDatabase::open(database_path).await?;
         Ok(Self { db })
-    }
-}
-
-#[derive(Debug)]
-pub struct OperationData<Data> {
-    data: Data,
-}
-impl<Data> OperationData<Data> {
-    pub async fn new(data: Data) -> Self {
-        OperationData { data }
-    }
-    pub async fn get_data(&self) -> &Data {
-        &self.data
-    }
-}
-
-#[derive(Debug)]
-pub enum HandlerResult {
-    Auth(OperationData<String>, bool),
-    Event(OperationData<String>),
-    Req(OperationData<Vec<String>>),
-    Close(OperationData<String>),
-    Count(OperationData<String>),
-    String(String),
-    Strings(Vec<String>),
-}
-
-impl std::fmt::Display for HandlerResult {
-    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        match self {
-            Self::Auth(_, _) => write!(f, "Auth"),
-            Self::Event(_) => write!(f, "Event"),
-            Self::Req(_) => write!(f, "Req"),
-            Self::Close(_) => write!(f, "Close"),
-            Self::Count(_) => write!(f, "Count"),
-            Self::String(_) => write!(f, "String"),
-            Self::Strings(_) => write!(f, "Strings"),
-        }
     }
 }
 

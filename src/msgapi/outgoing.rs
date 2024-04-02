@@ -4,7 +4,8 @@ use nostr::RelayMessage;
 use nostr::{event, SubscriptionId};
 
 const unauthenticated: &'static str = "we can't serve DMs to unauthenticated users";
-
+use super::HandlerResult;
+use super::OperationData;
 #[derive(Debug)]
 pub enum Error {
     Event(event::Error),
@@ -40,65 +41,14 @@ impl OutgoingMessage {
     }
 }
 
-#[derive(Debug)]
-pub struct ChallengeMsg {
-    pub challenge_msg: String,
-}
-#[derive(Debug)]
-pub struct notice_msg {
-    pub notice_msg: String,
-}
-
-impl ChallengeMsg {
-    pub async fn new(challenge_msg: String) -> Self {
-        ChallengeMsg { challenge_msg }
-    }
-    pub async fn get_challenge_msg(&self) -> String {
-        self.challenge_msg.clone()
-    }
-}
-
-impl notice_msg {
-    pub async fn new(notice_msg: String) -> Self {
-        notice_msg { notice_msg }
-    }
-    pub async fn get_notice_msg(&self) -> String {
-        self.notice_msg.clone()
-    }
-}
-
-#[derive(Debug, Clone)]
-pub struct EoseMsg {
-    pub eose_msg: String,
-}
-
-impl EoseMsg {
-    pub async fn new(eose_msg: String) -> Self {
-        EoseMsg { eose_msg }
-    }
-    pub async fn get_subscription_id(&self) -> String {
-        self.eose_msg.clone()
-    }
-}
-
-#[derive(Debug)]
-pub enum OutgoingMessageTypes {
-    Challenge(ChallengeMsg),
-    Notice(notice_msg),
-    Eose(EoseMsg),
-}
-
 #[async_trait]
 pub trait OutgoingHandler {
     async fn send_challenge<'a, 'b: 'a>(
         &'a self,
         challenge_msg: &'b str,
-    ) -> Result<OutgoingMessageTypes, Error>;
-    async fn send_notice(&self, notice_msg: String) -> Result<OutgoingMessageTypes, Error>;
-    async fn send_eose(
-        &self,
-        subscription_id: SubscriptionId,
-    ) -> Result<OutgoingMessageTypes, Error>;
+    ) -> Result<HandlerResult, Error>;
+    async fn send_notice(&self, notice_msg: String) -> Result<HandlerResult, Error>;
+    async fn send_eose(&self, subscription_id: SubscriptionId) -> Result<HandlerResult, Error>;
 }
 
 #[async_trait]
@@ -106,25 +56,22 @@ impl OutgoingHandler for OutgoingMessage {
     async fn send_challenge<'a, 'b: 'a>(
         &'a self,
         challenge_msg: &'b str,
-    ) -> Result<OutgoingMessageTypes, Error> {
+    ) -> Result<HandlerResult, Error> {
         let relay_message: RelayMessage = RelayMessage::auth(challenge_msg);
         let challenge_str: String = serde_json::to_string(&relay_message)?;
-        let ret = ChallengeMsg::new(challenge_str).await;
-        Ok(OutgoingMessageTypes::Challenge(ret))
+        let ret = OperationData::new(challenge_str).await;
+        Ok(HandlerResult::Challenge(ret))
     }
-    async fn send_notice(&self, notice_msg: String) -> Result<OutgoingMessageTypes, Error> {
+    async fn send_notice(&self, notice_msg: String) -> Result<HandlerResult, Error> {
         let relay_message: RelayMessage = RelayMessage::notice(notice_msg);
         let notice_str: String = serde_json::to_string(&relay_message)?;
-        let ret = notice_msg::new(notice_str).await;
-        Ok(OutgoingMessageTypes::Notice(ret))
+        let ret = OperationData::new(notice_str).await;
+        Ok(HandlerResult::Notice(ret))
     }
-    async fn send_eose(
-        &self,
-        subscription_id: SubscriptionId,
-    ) -> Result<OutgoingMessageTypes, Error> {
+    async fn send_eose(&self, subscription_id: SubscriptionId) -> Result<HandlerResult, Error> {
         let end_of_send_event: RelayMessage = RelayMessage::eose(subscription_id);
         let end_of_send_event_str: String = serde_json::to_string(&end_of_send_event)?;
-        let ret = EoseMsg::new(end_of_send_event_str).await;
-        Ok(OutgoingMessageTypes::Eose(ret))
+        let ret = OperationData::new(end_of_send_event_str).await;
+        Ok(HandlerResult::Eose(ret))
     }
 }
