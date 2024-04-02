@@ -28,7 +28,7 @@ impl Challenge {
         }
         true
     }
-    pub async fn ClientAuthentication(&self) -> bool {
+    pub async fn client_authentication(&self) -> bool {
         let kind: nostr::Kind = self.challenge_event.kind;
         match kind {
             Kind::Authentication => {
