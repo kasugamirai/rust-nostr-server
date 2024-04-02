@@ -3,7 +3,7 @@ name = "rust-nostr-server"
 version = "0.1.0"
 edition = "2021"
 authors = ["XIAO YU <xyzmhx@gmail.com>"]
-description = "A Discord bot using GPT-4"
+description = "A Nostr relay written in Rust."
 license = "MIT"
 
 [dependencies]
