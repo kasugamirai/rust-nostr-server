@@ -7,6 +7,7 @@ const DEDUPLICATED_EVENT: &'static str = "deduplicated event";
 const EVENT_SIGNATURE_VALID: &'static str = "event signature is valid";
 const close_message: &'static str = "received close message from client";
 const database_path: &'static str = "./db/rocksdb";
+use super::Error;
 use super::OperationData;
 use super::OutgoingHandler;
 use crate::HandlerResult;
@@ -18,57 +19,6 @@ const CHALLANGE_MESSAGE: &'static str = "helloWorld";
 #[derive(Debug, Clone)]
 pub struct IncomingMessage {
     db: RocksDatabase,
-}
-
-#[derive(Debug)]
-pub enum Error {
-    Event(event::Error),
-    MessageHandle(MessageHandleError),
-    Database(nostr_rocksdb::database::DatabaseError),
-    ToClientMessage(serde_json::Error),
-    Outgoing(outgoing::Error),
-}
-
-impl std::fmt::Display for Error {
-    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        match self {
-            Self::Event(e) => write!(f, "event: {}", e),
-            Self::MessageHandle(e) => write!(f, "message handle error: {}", e),
-            Self::Database(e) => write!(f, "database error: {}", e),
-            Self::ToClientMessage(e) => write!(f, "to client message error: {}", e),
-            Self::Outgoing(e) => write!(f, "outgoing error: {}", e),
-        }
-    }
-}
-
-impl From<outgoing::Error> for Error {
-    fn from(e: outgoing::Error) -> Self {
-        Self::Outgoing(e)
-    }
-}
-
-impl From<nostr::event::Error> for Error {
-    fn from(e: nostr::event::Error) -> Self {
-        Self::Event(e)
-    }
-}
-
-impl From<serde_json::Error> for Error {
-    fn from(e: serde_json::Error) -> Self {
-        Self::ToClientMessage(e)
-    }
-}
-
-impl From<nostr_rocksdb::database::DatabaseError> for Error {
-    fn from(e: nostr_rocksdb::database::DatabaseError) -> Self {
-        Self::Database(e)
-    }
-}
-
-impl From<MessageHandleError> for Error {
-    fn from(e: MessageHandleError) -> Self {
-        Self::MessageHandle(e)
-    }
 }
 
 impl IncomingMessage {
@@ -253,7 +203,7 @@ impl IncomingMessage {
             log::debug!("Event is not certified");
             //todo: send challenge
             let outgoing = OutgoingMessage::new();
-            outgoing.send_challenge(CHALLANGE_MESSAGE).await?;
+            return outgoing.send_challenge(CHALLANGE_MESSAGE).await;
         }
         if event_kind == nostr::Kind::EventDeletion {
             let filter = nostr::Filter::new().event(eid);

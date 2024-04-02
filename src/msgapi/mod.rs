@@ -1,22 +1,9 @@
 mod incoming;
 mod outgoing;
 pub use incoming::IncomingMessage;
+use nostr::event;
 pub use outgoing::OutgoingHandler;
 pub use outgoing::OutgoingMessage;
-#[derive(Debug)]
-pub enum Error {
-    Incoming(incoming::Error),
-    Outgoing(outgoing::Error),
-}
-
-impl std::fmt::Display for Error {
-    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        match self {
-            Self::Incoming(e) => write!(f, "incoming: {}", e),
-            Self::Outgoing(e) => write!(f, "outgoing: {}", e),
-        }
-    }
-}
 
 mod challange;
 
@@ -62,5 +49,48 @@ impl std::fmt::Display for HandlerResult {
             Self::String(_) => write!(f, "String"),
             Self::Strings(_) => write!(f, "Strings"),
         }
+    }
+}
+
+#[derive(Debug)]
+pub enum Error {
+    Event(event::Error),
+    MessageHandle(nostr::message::MessageHandleError),
+    Database(nostr_rocksdb::database::DatabaseError),
+    ToClientMessage(serde_json::Error),
+}
+
+impl std::fmt::Display for Error {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        match self {
+            Self::Event(e) => write!(f, "event: {}", e),
+            Self::MessageHandle(e) => write!(f, "message handle error: {}", e),
+            Self::Database(e) => write!(f, "database error: {}", e),
+            Self::ToClientMessage(e) => write!(f, "to client message error: {}", e),
+        }
+    }
+}
+
+impl From<nostr::event::Error> for Error {
+    fn from(e: nostr::event::Error) -> Self {
+        Self::Event(e)
+    }
+}
+
+impl From<serde_json::Error> for Error {
+    fn from(e: serde_json::Error) -> Self {
+        Self::ToClientMessage(e)
+    }
+}
+
+impl From<nostr_rocksdb::database::DatabaseError> for Error {
+    fn from(e: nostr_rocksdb::database::DatabaseError) -> Self {
+        Self::Database(e)
+    }
+}
+
+impl From<nostr::message::MessageHandleError> for Error {
+    fn from(e: nostr::message::MessageHandleError) -> Self {
+        Self::MessageHandle(e)
     }
 }
