@@ -1,9 +1,9 @@
 use async_trait::async_trait;
-use nostr::message::subscription;
+//use nostr::message::subscription;
 use nostr::RelayMessage;
-use nostr::{event, SubscriptionId};
+use nostr::SubscriptionId;
 
-const unauthenticated: &'static str = "we can't serve DMs to unauthenticated users";
+const UNAUTHENTICATED: &'static str = "we can't serve DMs to unauthenticated users";
 use super::Error;
 use super::HandlerResult;
 use super::OperationData;
@@ -23,7 +23,7 @@ pub trait OutgoingHandler {
         challenge_msg: &'b str,
     ) -> Result<HandlerResult, Error>;
     async fn send_notice(&self, notice_msg: String) -> Result<HandlerResult, Error>;
-    async fn send_eose(&self, subscription_id: SubscriptionId) -> Result<HandlerResult, Error>;
+    async fn send_eose(&self, subscription_id: SubscriptionId) -> Result<String, Error>;
 }
 
 #[async_trait]
@@ -43,10 +43,9 @@ impl OutgoingHandler for OutgoingMessage {
         let ret = OperationData::new(notice_str);
         Ok(HandlerResult::Notice(ret))
     }
-    async fn send_eose(&self, subscription_id: SubscriptionId) -> Result<HandlerResult, Error> {
+    async fn send_eose(&self, subscription_id: SubscriptionId) -> Result<String, Error> {
         let end_of_send_event: RelayMessage = RelayMessage::eose(subscription_id);
         let end_of_send_event_str: String = serde_json::to_string(&end_of_send_event)?;
-        let ret = OperationData::new(end_of_send_event_str);
-        Ok(HandlerResult::Eose(ret))
+        Ok(end_of_send_event_str)
     }
 }
