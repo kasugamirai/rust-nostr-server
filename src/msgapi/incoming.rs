@@ -3,10 +3,10 @@ use nostr::{ClientMessage, Event, RelayMessage};
 use nostr_database::{NostrDatabase, Order};
 use nostr_rocksdb::RocksDatabase;
 
-const DEDUPLICATED_EVENT: &'static str = "deduplicated event";
-const EVENT_SIGNATURE_VALID: &'static str = "event signature is valid";
-const CLOSE_MESSAGE: &'static str = "received close message from client";
-const DATABASE_PATH: &'static str = "./db/rocksdb";
+const DEDUPLICATED_EVENT: &str = "deduplicated event";
+const EVENT_SIGNATURE_VALID: &str = "event signature is valid";
+const CLOSE_MESSAGE: &str = "received close message from client";
+const DATABASE_PATH: &str = "./db/rocksdb";
 use super::Error;
 use super::OperationData;
 use super::OutgoingHandler;
@@ -15,7 +15,7 @@ use crate::HandlerResult;
 use super::Challenge;
 use super::OutgoingMessage;
 
-const CHALLENGE_MESSAGE: &'static str = "helloWorld";
+const CHALLENGE_MESSAGE: &str = "helloWorld";
 #[derive(Debug, Clone)]
 pub struct IncomingMessage {
     db: RocksDatabase,
@@ -29,9 +29,9 @@ impl IncomingMessage {
 }
 
 impl IncomingMessage {
-    fn check_signature<'a>(&self, event: &'a Event) -> Result<(), Error> {
-        let ret = event.verify_signature()?;
-        Ok(ret)
+    fn check_signature(&self, event: Event) -> Result<(), Error> {
+        event.verify_signature()?;
+        Ok(())
     }
     pub async fn to_client_message(&self, txt: &str) -> Result<ClientMessage, Error> {
         let ret: ClientMessage = <ClientMessage as nostr::JsonUtil>::from_json(txt)?;
@@ -212,26 +212,26 @@ impl IncomingMessage {
         let event_kind = event.kind();
         if !certified && is_channel_message(&event) {
             log::debug!("Event is not certified");
-            let outgoing = OutgoingMessage::new();
+            let outgoing = OutgoingMessage::default();
             return outgoing.send_challenge(CHALLENGE_MESSAGE).await;
         }
         if event_kind == nostr::Kind::EventDeletion {
             let filter = nostr::Filter::new().event(eid);
             self.db.delete(filter).await?;
             let content: String = event.content().to_string();
-            response = RelayMessage::ok(eid, true, &content);
+            response = RelayMessage::ok(eid, true, content);
             let response_str: String = serde_json::to_string(&response)?;
             let ret = OperationData::new(response_str);
             return Ok(HandlerResult::Event(ret));
         }
 
-        match self.check_signature(&event) {
+        match self.check_signature(*event.clone()) {
             Ok(_) => {
                 log::info!("Event signature is valid");
             }
             Err(e) => {
                 let err = e.to_string();
-                response = RelayMessage::ok(eid, false, &err);
+                response = RelayMessage::ok(eid, false, err);
                 let response_str = serde_json::to_string(&response)?;
                 let ret = OperationData::new(response_str);
                 return Ok(HandlerResult::Event(ret));
@@ -257,11 +257,11 @@ impl IncomingMessage {
 }
 
 fn is_channel_message(event: &Event) -> bool {
-    match event.kind() {
+    matches!(
+        event.kind(),
         nostr::Kind::ChannelMessage
-        | nostr::Kind::ChannelCreation
-        | nostr::Kind::ChannelMuteUser
-        | nostr::Kind::ChannelMetadata => true,
-        _ => false,
-    }
+            | nostr::Kind::ChannelCreation
+            | nostr::Kind::ChannelMuteUser
+            | nostr::Kind::ChannelMetadata
+    )
 }

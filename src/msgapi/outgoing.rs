@@ -11,7 +11,7 @@ use super::OperationData;
 pub struct OutgoingMessage {}
 
 impl OutgoingMessage {
-    pub fn new() -> Self {
+    pub fn default() -> Self {
         OutgoingMessage {}
     }
 }

@@ -30,14 +30,7 @@ impl<'a> Challenge<'a> {
     }
     pub fn client_authentication(&self) -> bool {
         let kind: nostr::Kind = self.challenge_event.kind;
-        match kind {
-            Kind::Authentication => {
-                return true;
-            }
-            _ => {
-                return false;
-            }
-        }
+        matches!(kind, Kind::Authentication)
     }
     pub fn relay_check(&self) -> bool {
         true
