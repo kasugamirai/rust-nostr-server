@@ -1,11 +1,10 @@
 mod incoming;
 mod outgoing;
 pub use incoming::IncomingMessage;
-use nostr::event;
-pub use outgoing::OutgoingHandler;
 pub use outgoing::OutgoingMessage;
 
 mod challange;
+pub use outgoing::OutgoingHandler;
 
 pub use challange::Challenge;
 #[derive(Debug)]
@@ -52,6 +51,7 @@ impl std::fmt::Display for HandlerResult {
     }
 }
 
+/*
 #[derive(Debug)]
 pub enum Error {
     Event(event::Error),
@@ -94,3 +94,4 @@ impl From<nostr::message::MessageHandleError> for Error {
         Self::MessageHandle(e)
     }
 }
+*/

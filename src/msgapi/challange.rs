@@ -3,11 +3,11 @@ use nostr::event::Event;
 use nostr::Kind;
 
 pub struct Challenge<'a> {
-    pub challenge_event: &'a Box<Event>,
+    pub challenge_event: &'a Event,
 }
 
 impl<'a> Challenge<'a> {
-    pub fn new(challenge_event: &'a Box<Event>) -> Self {
+    pub fn new(challenge_event: &'a Event) -> Self {
         Challenge { challenge_event }
     }
     pub fn time_check(&self) -> bool {

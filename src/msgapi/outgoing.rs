@@ -2,19 +2,20 @@ use async_trait::async_trait;
 //use nostr::message::subscription;
 use nostr::RelayMessage;
 use nostr::SubscriptionId;
-
-const UNAUTHENTICATED: &'static str = "we can't serve DMs to unauthenticated users";
-use super::Error;
+use std::default::Default;
+const UNAUTHENTICATED: &str = "we can't serve DMs to unauthenticated users";
 use super::HandlerResult;
 use super::OperationData;
+use thiserror::Error;
 
-pub struct OutgoingMessage {}
-
-impl OutgoingMessage {
-    pub fn default() -> Self {
-        OutgoingMessage {}
-    }
+#[derive(Error, Debug)]
+pub enum Error {
+    #[error("to client message: {0}")]
+    SerdeJson(#[from] serde_json::Error),
 }
+
+#[derive(Default)]
+pub struct OutgoingMessage {}
 
 #[async_trait]
 pub trait OutgoingHandler {

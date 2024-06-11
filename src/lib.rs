@@ -9,11 +9,6 @@ pub use limiter::RateLimitError;
 pub use msgapi::IncomingMessage;
 pub use msgapi::OutgoingHandler;
 pub use msgapi::OutgoingMessage;
-pub enum Error {
-    MsgApi(msgapi::Error),
-    //   Server(db::Error),
-    //Web(web::Error),
-}
 
 pub use limiter::RateLimiter;
 pub use msgapi::Challenge;

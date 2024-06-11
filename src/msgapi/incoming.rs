@@ -1,5 +1,5 @@
 use nostr::SubscriptionId;
-use nostr::{ClientMessage, Event, RelayMessage};
+use nostr::{event, ClientMessage, Event, RelayMessage};
 use nostr_database::{NostrDatabase, Order};
 use nostr_rocksdb::RocksDatabase;
 
@@ -7,13 +7,27 @@ const DEDUPLICATED_EVENT: &str = "deduplicated event";
 const EVENT_SIGNATURE_VALID: &str = "event signature is valid";
 const CLOSE_MESSAGE: &str = "received close message from client";
 const DATABASE_PATH: &str = "./db/rocksdb";
-use super::Error;
 use super::OperationData;
 use super::OutgoingHandler;
 use crate::HandlerResult;
+use thiserror::Error;
 
 use super::Challenge;
 use super::OutgoingMessage;
+
+#[derive(Error, Debug)]
+pub enum Error {
+    #[error(transparent)]
+    Event(#[from] event::Error),
+    #[error(transparent)]
+    MessageHandle(#[from] nostr::message::MessageHandleError),
+    #[error(transparent)]
+    Database(#[from] nostr_rocksdb::database::DatabaseError),
+    #[error(transparent)]
+    SerdeJson(#[from] serde_json::Error),
+    #[error(transparent)]
+    Outgoing(#[from] crate::msgapi::outgoing::Error),
+}
 
 const CHALLENGE_MESSAGE: &str = "helloWorld";
 #[derive(Debug, Clone)]
@@ -136,7 +150,7 @@ impl IncomingMessage {
         let response: RelayMessage = RelayMessage::ok(event_id, status, EVENT_SIGNATURE_VALID);
         let response_str: String = serde_json::to_string(&response)?;
         let ret = OperationData::new(response_str);
-        return Ok(HandlerResult::Auth(ret, status));
+        Ok(HandlerResult::Auth(ret, status))
     }
 
     async fn handle_close(&self, sid: SubscriptionId) -> Result<HandlerResult, Error> {
@@ -213,7 +227,8 @@ impl IncomingMessage {
         if !certified && is_channel_message(&event) {
             log::debug!("Event is not certified");
             let outgoing = OutgoingMessage::default();
-            return outgoing.send_challenge(CHALLENGE_MESSAGE).await;
+            let ret = outgoing.send_challenge(CHALLENGE_MESSAGE).await?;
+            return Ok(ret);
         }
         if event_kind == nostr::Kind::EventDeletion {
             let filter = nostr::Filter::new().event(eid);
